@@ -1,5 +1,4 @@
 # SkillSwap
-
 SkillSwap is a skill exchange platform where people can teach the skills they know and learn the skills they want through mutual skill exchange.
 
 ## Project Structure
