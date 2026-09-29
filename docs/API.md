@@ -8,47 +8,69 @@ http://localhost:5000/api
 
 ---
 
-## 1. Authentication
+# 1. Authentication
 
-### Register
+## Register
 
 **POST** `/auth/register`
 
-Creates a new user account.
+Creates a new SkillSwap user account.
 
-#### Request Body
+### Request Body
 
 ```json
 {
   "name": "John Doe",
   "email": "john@example.com",
+  "phone": "9876543210",
+  "college": "ABC College",
+  "register_no": "REG12345",
+  "department": "Computer Science",
   "password": "password123"
 }
 ```
 
-#### Response
+Optional profile fields:
 
 ```json
 {
-  "message": "User registered successfully",
+  "bio": "I enjoy teaching programming.",
+  "location": "Coimbatore",
+  "availability": "Weekends"
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Registration successful",
+  "token": "JWT_TOKEN",
   "user": {
     "id": 1,
     "name": "John Doe",
-    "email": "john@example.com"
-  },
-  "token": "JWT_TOKEN"
+    "email": "john@example.com",
+    "phone": "9876543210",
+    "college": "ABC College",
+    "register_no": "REG12345",
+    "department": "Computer Science",
+    "bio": null,
+    "location": null,
+    "availability": null
+  }
 }
 ```
 
 ---
 
-### Login
+## Login
 
 **POST** `/auth/login`
 
 Logs an existing user into SkillSwap.
 
-#### Request Body
+### Request Body
 
 ```json
 {
@@ -57,31 +79,75 @@ Logs an existing user into SkillSwap.
 }
 ```
 
-#### Response
+### Response
 
 ```json
 {
+  "success": true,
   "message": "Login successful",
+  "token": "JWT_TOKEN",
   "user": {
     "id": 1,
     "name": "John Doe",
-    "email": "john@example.com"
-  },
-  "token": "JWT_TOKEN"
+    "email": "john@example.com",
+    "phone": "9876543210",
+    "college": "ABC College",
+    "register_no": "REG12345",
+    "department": "Computer Science",
+    "bio": null,
+    "profile_image": null,
+    "location": null,
+    "availability": null
+  }
 }
 ```
 
 ---
 
-## 2. User
+## Get Current User
 
-### Get Current User
+**GET** `/auth/me`
 
-**GET** `/users/me`
+Returns the currently authenticated user.
 
-Returns the profile of the currently logged-in user.
+### Header
 
-#### Header
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "9876543210",
+    "college": "ABC College",
+    "register_no": "REG12345",
+    "department": "Computer Science",
+    "bio": null,
+    "profile_image": null,
+    "location": null,
+    "availability": null
+  }
+}
+```
+
+---
+
+# 2. Users
+
+## Get All Users
+
+**GET** `/users`
+
+Returns users other than the currently logged-in user.
+
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
@@ -89,175 +155,352 @@ Authorization: Bearer JWT_TOKEN
 
 ---
 
-### Update Profile
+## Get My Profile
+
+**GET** `/users/me`
+
+Returns the current user's profile.
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+---
+
+## Update My Profile
 
 **PUT** `/users/me`
 
 Updates the current user's profile.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
 ```
 
-#### Request Body
+### Request Body
+
+Any supported profile fields can be updated:
 
 ```json
 {
   "name": "John Doe",
-  "bio": "I teach JavaScript and want to learn UI/UX."
+  "bio": "I teach JavaScript.",
+  "profile_image": "https://example.com/profile.jpg",
+  "location": "Coimbatore",
+  "availability": "Evenings"
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Profile updated successfully",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com"
+  }
 }
 ```
 
 ---
 
-## 3. Skills
+## Get User By ID
 
-### Get All Skills
+**GET** `/users/:id`
+
+Returns another user's profile and their teaching/learning skills.
+
+### Example
+
+```text
+GET /users/2
+```
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+---
+
+# 3. Skills
+
+## Get All Skills
 
 **GET** `/skills`
 
 Returns all available skills.
 
-#### Response
-
-```json
-[
-  {
-    "id": 1,
-    "name": "JavaScript",
-    "description": "Programming language used for web development"
-  },
-  {
-    "id": 2,
-    "name": "React",
-    "description": "JavaScript library for building user interfaces"
-  }
-]
-```
-
----
-
-### Add User Skill
-
-**POST** `/users/skills`
-
-Adds a skill to the current user's profile.
-
-#### Header
-
-```text
-Authorization: Bearer JWT_TOKEN
-```
-
-#### Request Body
+### Example Response
 
 ```json
 {
-  "skill_id": 1,
-  "skill_type": "teach",
-  "proficiency": "advanced"
+  "success": true,
+  "count": 3,
+  "skills": [
+    {
+      "id": 1,
+      "name": "JavaScript",
+      "category": "Programming",
+      "description": "Programming language used for web development"
+    },
+    {
+      "id": 2,
+      "name": "React",
+      "category": "Programming",
+      "description": "JavaScript library for building user interfaces"
+    }
+  ]
 }
 ```
 
-`skill_type`:
+---
+
+## Get Skill By ID
+
+**GET** `/skills/:id`
+
+Example:
 
 ```text
-teach
-learn
-```
-
-`proficiency`:
-
-```text
-beginner
-intermediate
-advanced
+GET /skills/1
 ```
 
 ---
 
-### Get User Skills
+## Create New Skill
 
-**GET** `/users/skills`
+**POST** `/skills`
+
+Creates a new skill.
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+### Request Body
+
+```json
+{
+  "name": "Docker",
+  "category": "Development Tools",
+  "description": "Containerization platform for applications"
+}
+```
+
+---
+
+## Add Skill To My Profile
+
+**POST** `/skills/user`
+
+Adds a teaching or learning skill to the current user's profile.
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+### Request Body
+
+```json
+{
+  "skillId": 1,
+  "type": "TEACH",
+  "level": "ADVANCED"
+}
+```
+
+### `type`
+
+```text
+TEACH
+LEARN
+```
+
+### `level`
+
+```text
+BEGINNER
+INTERMEDIATE
+ADVANCED
+EXPERT
+```
+
+---
+
+## Get My Skills
+
+**GET** `/skills/user/me`
 
 Returns the current user's teaching and learning skills.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
 ```
 
+### Example Response
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "teach": [
+    {
+      "id": 1,
+      "skill_id": 1,
+      "name": "JavaScript",
+      "type": "TEACH",
+      "level": "ADVANCED"
+    }
+  ],
+  "learn": [
+    {
+      "id": 2,
+      "skill_id": 9,
+      "name": "UI/UX Design",
+      "type": "LEARN",
+      "level": "BEGINNER"
+    }
+  ]
+}
+```
+
 ---
 
-## 4. AI Matching
+## Delete Skill From My Profile
 
-### Get Matches
+**DELETE** `/skills/user/:skillId`
+
+Example:
+
+```text
+DELETE /skills/user/1
+```
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+### Request Body
+
+```json
+{
+  "type": "TEACH"
+}
+```
+
+---
+
+# 4. Skill Matching
+
+## Get Matches
 
 **GET** `/matches`
 
-Returns potential skill-exchange partners.
+Returns users whose teaching and learning skills are compatible with the current user's skills.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
 ```
 
-#### Example Response
+The current backend performs this matching using the database skill relationships.
+
+The current response includes:
 
 ```json
-[
-  {
-    "user_id": 2,
-    "name": "Jane Smith",
-    "match_score": 85,
-    "teaches": "UI/UX Design",
-    "learns": "JavaScript"
-  }
-]
+{
+  "success": true,
+  "count": 1,
+  "matches": [
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "bio": "I enjoy design.",
+      "profile_image": null,
+      "location": "Coimbatore",
+      "availability": "Weekends",
+      "skills_they_can_teach": 1,
+      "skills_they_want_to_learn": 1
+    }
+  ]
+}
 ```
-
-The AI service calculates compatibility between users based on their teaching and learning skills.
 
 ---
 
-## 5. Exchange Requests
+## Get Match By User ID
 
-### Send Request
+**GET** `/matches/:id`
+
+Example:
+
+```text
+GET /matches/2
+```
+
+Returns the matched user's information and the skills that connect the two users.
+
+---
+
+# 5. Exchange Requests
+
+## Send Exchange Request
 
 **POST** `/requests`
 
 Sends an exchange request to another user.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
 ```
 
-#### Request Body
+### Request Body
 
 ```json
 {
-  "receiver_id": 2,
-  "sender_skill_id": 1,
-  "receiver_skill_id": 9,
+  "receiverId": 2,
+  "senderSkillId": 1,
+  "receiverSkillId": 9,
   "message": "I can teach JavaScript in exchange for UI/UX lessons."
 }
 ```
 
+### Important
+
+`senderSkillId` and `receiverSkillId` refer to **skill IDs from the `skills` table**.
+
+The sender's selected skill must be one they can teach, and the receiver's selected skill must be one they can teach.
+
 ---
 
-### Get Requests
+## Get Received Requests
 
-**GET** `/requests`
+**GET** `/requests/received`
 
-Returns exchange requests sent and received by the current user.
+Returns exchange requests received by the current user.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
@@ -265,80 +508,107 @@ Authorization: Bearer JWT_TOKEN
 
 ---
 
-### Accept Request
+## Get Sent Requests
+
+**GET** `/requests/sent`
+
+Returns exchange requests sent by the current user.
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+---
+
+## Accept Request
 
 **PUT** `/requests/:id/accept`
 
 Accepts an exchange request.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
 ```
 
+Example:
+
+```text
+PUT /requests/1/accept
+```
+
 ---
 
-### Reject Request
+## Reject Request
 
 **PUT** `/requests/:id/reject`
 
 Rejects an exchange request.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
+```
+
+Example:
+
+```text
+PUT /requests/1/reject
 ```
 
 ---
 
-## 6. Sessions
+# 6. Sessions
 
-### Create Session
+Sessions are created after an exchange request has been accepted.
+
+## Create Session
 
 **POST** `/sessions`
 
-Creates a learning session after an exchange request is accepted.
+Creates a learning session for an accepted exchange request.
 
-#### Header
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
 ```
 
-#### Request Body
+### Request Body
 
 ```json
 {
-  "request_id": 1,
-  "participant_id": 2,
-  "scheduled_at": "2026-10-05 18:00:00",
-  "meeting_link": "https://example.com/meeting"
+  "requestId": 1,
+  "scheduledAt": "2026-10-05 18:00:00",
+  "meetingLink": "https://example.com/meeting"
+}
+```
+
+The backend determines the host and participant from the accepted exchange request.
+
+### Response
+
+```json
+{
+  "success": true,
+  "message": "Session created successfully",
+  "sessionId": 1
 }
 ```
 
 ---
 
-### Get Sessions
+## Get My Sessions
 
 **GET** `/sessions`
 
-Returns the current user's sessions.
+Returns sessions where the current user is either the host or participant.
 
-#### Header
-
-```text
-Authorization: Bearer JWT_TOKEN
-```
-
----
-
-## 7. Authentication
-
-Protected endpoints use JWT authentication.
-
-Include the token in every protected request:
+### Header
 
 ```text
 Authorization: Bearer JWT_TOKEN
@@ -346,7 +616,80 @@ Authorization: Bearer JWT_TOKEN
 
 ---
 
-## 8. HTTP Status Codes
+## Get Session By ID
+
+**GET** `/sessions/:id`
+
+Example:
+
+```text
+GET /sessions/1
+```
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+---
+
+## Update Session
+
+**PUT** `/sessions/:id`
+
+Updates the session schedule, meeting link, or status.
+
+### Request Body
+
+```json
+{
+  "scheduledAt": "2026-10-05 19:00:00",
+  "meetingLink": "https://example.com/new-meeting",
+  "status": "ongoing"
+}
+```
+
+Allowed statuses:
+
+```text
+scheduled
+ongoing
+completed
+cancelled
+```
+
+---
+
+## Complete Session
+
+**PUT** `/sessions/:id/complete`
+
+Marks the session as completed.
+
+### Header
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+---
+
+# 7. Authentication
+
+Protected endpoints require JWT authentication.
+
+Include the token in the request header:
+
+```text
+Authorization: Bearer JWT_TOKEN
+```
+
+The JWT is generated during registration or login and is valid for 7 days.
+
+---
+
+# 8. HTTP Status Codes
 
 | Status | Meaning               |
 | ------ | --------------------- |
@@ -356,24 +699,25 @@ Authorization: Bearer JWT_TOKEN
 | `401`  | Unauthorized          |
 | `403`  | Forbidden             |
 | `404`  | Resource not found    |
+| `409`  | Conflict              |
 | `500`  | Internal server error |
 
 ---
 
-## 9. SkillSwap Application Flow
+# 9. SkillSwap Application Flow
 
 ```text
 Register
    ↓
 Login
    ↓
-Create Profile
+Create / Update Profile
    ↓
 Add Teaching Skills
    ↓
 Add Learning Skills
    ↓
-AI Matching
+Find Skill Matches
    ↓
 Send Exchange Request
    ↓
@@ -383,36 +727,30 @@ Create Session
    ↓
 Chat / Video Call
    ↓
-Complete Skill Exchange
+Complete Session
 ```
 
 ---
 
-## 10. Technology
+# 10. Technology
 
-| Component       | Technology            |
-| --------------- | --------------------- |
-| Frontend        | React + Tailwind CSS  |
-| Backend         | Node.js + Express     |
-| Database        | MySQL                 |
-| Authentication  | JWT                   |
-| AI Service      | Python + FastAPI      |
-| Real-time Chat  | Firebase              |
-| Video Call      | Video/meeting service |
-| Version Control | Git + GitHub          |
+| Component       | Technology              |
+| --------------- | ----------------------- |
+| Frontend        | React + Tailwind CSS    |
+| Backend         | Node.js + Express       |
+| Database        | MySQL                   |
+| Authentication  | JWT                     |
+| AI Service      | Python + FastAPI        |
+| Real-time Chat  | Firebase                |
+| Video Call      | Video / meeting service |
+| Version Control | Git + GitHub            |
 
-````
+---
 
-Save it as:
+# 11. Current Implementation Note
 
-```text
-SkillSwap/docs/API.md
-````
+The current `/matches` backend performs skill matching using MySQL queries based on teaching and learning skill relationships.
 
-Then commit it on your `frontend1` branch if you're the one maintaining the project documentation:
+The separate Python + FastAPI AI service is part of the planned SkillSwap architecture and can later be connected to the matching flow.
 
-```bash
-git add docs/API.md
-git commit -m "Add API documentation"
-git push origin frontend1
-```
+The API documentation should therefore be updated again when the AI service is integrated into the backend.
