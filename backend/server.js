@@ -1,3 +1,4 @@
+
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -14,6 +15,9 @@ const skillRoutes = require("./routes/skillRoutes");
 const matchRoutes = require("./routes/matchRoutes");
 const requestRoutes = require("./routes/requestRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const ratingRoutes = require("./routes/ratingRoutes");
 
 // =========================
 // APP
@@ -106,6 +110,21 @@ app.use(
 app.use(
   "/api/sessions",
   sessionRoutes
+);
+
+app.use(
+  "/api/dashboard",
+  dashboardRoutes
+);
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
+
+app.use(
+  "/api/ratings",
+  ratingRoutes
 );
 
 // =========================

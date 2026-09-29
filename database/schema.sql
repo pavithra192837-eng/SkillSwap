@@ -1,3 +1,4 @@
+
 -- ============================================
 -- SkillSwap Database Schema
 -- ============================================
@@ -8,7 +9,20 @@ USE skillswap;
 
 
 -- ============================================
--- 1. USERS
+-- 1. SKILL CATEGORIES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS skill_categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    name VARCHAR(100) NOT NULL UNIQUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================
+-- 2. USERS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS users (
@@ -16,17 +30,16 @@ CREATE TABLE IF NOT EXISTS users (
 
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-
     phone VARCHAR(20),
+
     college VARCHAR(150),
-    register_no VARCHAR(50),
+    roll_no VARCHAR(50) NOT NULL UNIQUE,
     department VARCHAR(100),
+
+    password_hash VARCHAR(255) NOT NULL,
 
     bio TEXT,
     profile_image VARCHAR(500),
-    location VARCHAR(255),
-    availability VARCHAR(255),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -36,22 +49,28 @@ CREATE TABLE IF NOT EXISTS users (
 
 
 -- ============================================
--- 2. SKILLS
+-- 3. SKILLS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS skills (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     name VARCHAR(100) NOT NULL UNIQUE,
-    category VARCHAR(100),
+
+    category_id INT,
+
     description TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (category_id)
+        REFERENCES skill_categories(id)
+        ON DELETE SET NULL
 );
 
 
 -- ============================================
--- 3. USER SKILLS
+-- 4. USER SKILLS
 -- Stores skills a user can TEACH
 -- or wants to LEARN
 -- ============================================
@@ -70,11 +89,8 @@ CREATE TABLE IF NOT EXISTS user_skills (
     level ENUM(
         'BEGINNER',
         'INTERMEDIATE',
-        'ADVANCED',
-        'EXPERT'
+        'ADVANCED'
     ) DEFAULT 'BEGINNER',
-
-    verified BOOLEAN DEFAULT FALSE,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -95,7 +111,7 @@ CREATE TABLE IF NOT EXISTS user_skills (
 
 
 -- ============================================
--- 4. EXCHANGE REQUESTS
+-- 5. EXCHANGE REQUESTS
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS exchange_requests (
@@ -104,18 +120,17 @@ CREATE TABLE IF NOT EXISTS exchange_requests (
     sender_id INT NOT NULL,
     receiver_id INT NOT NULL,
 
-    -- These reference skills.id
-    sender_skill_id INT NOT NULL,
-    receiver_skill_id INT NOT NULL,
+    offered_skill_id INT NOT NULL,
+    requested_skill_id INT NOT NULL,
 
     message TEXT,
 
     status ENUM(
-        'pending',
-        'accepted',
-        'rejected',
-        'cancelled'
-    ) DEFAULT 'pending',
+        'PENDING',
+        'ACCEPTED',
+        'REJECTED',
+        'CANCELLED'
+    ) DEFAULT 'PENDING',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -130,18 +145,18 @@ CREATE TABLE IF NOT EXISTS exchange_requests (
         REFERENCES users(id)
         ON DELETE CASCADE,
 
-    FOREIGN KEY (sender_skill_id)
+    FOREIGN KEY (offered_skill_id)
         REFERENCES skills(id)
         ON DELETE CASCADE,
 
-    FOREIGN KEY (receiver_skill_id)
+    FOREIGN KEY (requested_skill_id)
         REFERENCES skills(id)
         ON DELETE CASCADE
 );
 
 
 -- ============================================
--- 5. SESSIONS
+-- 6. SESSIONS
 -- Created after an exchange request
 -- is accepted
 -- ============================================
@@ -151,19 +166,19 @@ CREATE TABLE IF NOT EXISTS sessions (
 
     request_id INT NOT NULL,
 
-    host_id INT NOT NULL,
-    participant_id INT NOT NULL,
+    user1_id INT NOT NULL,
+    user2_id INT NOT NULL,
 
     scheduled_at DATETIME NOT NULL,
 
     status ENUM(
-        'scheduled',
-        'ongoing',
-        'completed',
-        'cancelled'
-    ) DEFAULT 'scheduled',
+        'SCHEDULED',
+        'ONGOING',
+        'COMPLETED',
+        'CANCELLED'
+    ) DEFAULT 'SCHEDULED',
 
-    meeting_link VARCHAR(500),
+    meeting_id VARCHAR(500),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -174,11 +189,76 @@ CREATE TABLE IF NOT EXISTS sessions (
         REFERENCES exchange_requests(id)
         ON DELETE CASCADE,
 
-    FOREIGN KEY (host_id)
+    FOREIGN KEY (user1_id)
         REFERENCES users(id)
         ON DELETE CASCADE,
 
-    FOREIGN KEY (participant_id)
+    FOREIGN KEY (user2_id)
         REFERENCES users(id)
         ON DELETE CASCADE
 );
+
+
+-- ============================================
+-- 7. NOTIFICATIONS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    user_id INT NOT NULL,
+
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    message TEXT,
+
+    reference_id INT,
+
+    is_read BOOLEAN DEFAULT FALSE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+
+-- ============================================
+-- 8. RATINGS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    session_id INT NOT NULL,
+
+    reviewer_id INT NOT NULL,
+    reviewee_id INT NOT NULL,
+
+    rating TINYINT NOT NULL,
+
+    comment TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (session_id)
+        REFERENCES sessions(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (reviewer_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (reviewee_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CHECK (rating >= 1 AND rating <= 5),
+
+    UNIQUE (
+        session_id,
+        reviewer_id
+    )
+);
+

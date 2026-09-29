@@ -1,19 +1,25 @@
+
 const { pool } = require("../config/db");
 
-// =========================
+// ========================================
 // GET MATCHES
 // GET /api/matches
-// =========================
+// ========================================
 const getMatches = async (req, res) => {
   try {
     const userId = req.user.id;
 
     /*
-      Find users who:
-      1. Teach something the current user wants to learn
-      2. Want to learn something the current user can teach
+      Reciprocal skill matching:
 
-      This creates a reciprocal skill exchange.
+      1. The other user teaches a skill
+         that the current user wants to learn.
+
+      2. The other user wants to learn a skill
+         that the current user can teach.
+
+      A user is returned only when both
+      conditions are satisfied.
     */
 
     const [matches] = await pool.query(
@@ -22,13 +28,15 @@ const getMatches = async (req, res) => {
         u.id,
         u.name,
         u.email,
+        u.phone,
+        u.college,
+        u.roll_no,
+        u.department,
         u.bio,
         u.profile_image,
-        u.location,
-        u.availability,
 
-        COUNT(DISTINCT
-          CASE
+        COUNT(
+          DISTINCT CASE
             WHEN their_skill.type = 'TEACH'
             AND their_skill.skill_id IN (
               SELECT skill_id
@@ -40,8 +48,8 @@ const getMatches = async (req, res) => {
           END
         ) AS skills_they_can_teach,
 
-        COUNT(DISTINCT
-          CASE
+        COUNT(
+          DISTINCT CASE
             WHEN their_skill.type = 'LEARN'
             AND their_skill.skill_id IN (
               SELECT skill_id
@@ -55,7 +63,7 @@ const getMatches = async (req, res) => {
 
       FROM users u
 
-      JOIN user_skills their_skill
+      INNER JOIN user_skills their_skill
         ON u.id = their_skill.user_id
 
       WHERE u.id != ?
@@ -64,141 +72,215 @@ const getMatches = async (req, res) => {
         u.id,
         u.name,
         u.email,
+        u.phone,
+        u.college,
+        u.roll_no,
+        u.department,
         u.bio,
-        u.profile_image,
-        u.location,
-        u.availability
+        u.profile_image
 
       HAVING
         skills_they_can_teach > 0
         AND skills_they_want_to_learn > 0
 
       ORDER BY
-        (skills_they_can_teach + skills_they_want_to_learn) DESC
+        (
+          skills_they_can_teach +
+          skills_they_want_to_learn
+        ) DESC
       `,
-      [userId, userId, userId]
+      [
+        userId,
+        userId,
+        userId,
+      ]
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: matches.length,
       matches,
     });
-
   } catch (error) {
-    console.error("Get matches error:", error.message);
+    console.error(
+      "Get matches error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to find matches",
     });
   }
 };
 
-
-// =========================
-// GET MATCH BY ID
-// GET /api/matches/:id
-// =========================
+// ========================================
+// GET MATCH BY USER ID
+// GET /api/matches/:userId
+// ========================================
 const getMatchById = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const matchId = req.params.id;
+    const currentUserId = req.user.id;
+    const matchUserId = req.params.userId;
 
-    // Get matched user's basic information
+    // ------------------------------------
+    // Prevent matching with yourself
+    // ------------------------------------
+    if (
+      Number(currentUserId) ===
+      Number(matchUserId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "You cannot match with yourself",
+      });
+    }
+
+    // ------------------------------------
+    // Get matched user's profile
+    // ------------------------------------
     const [users] = await pool.query(
       `
       SELECT
         id,
         name,
         email,
+        phone,
+        college,
+        roll_no,
+        department,
         bio,
-        profile_image,
-        location,
-        availability
+        profile_image
       FROM users
       WHERE id = ?
-      AND id != ?
       `,
-      [matchId, userId]
+      [matchUserId]
     );
 
     if (users.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Matched user not found",
+        message: "User not found",
       });
     }
 
     const matchedUser = users[0];
 
-    // Skills this user teaches that current user wants
-    const [teachingSkills] = await pool.query(
-      `
-      SELECT
-        s.id,
-        s.name,
-        s.category,
-        us.level
-      FROM user_skills us
-      JOIN skills s
-        ON us.skill_id = s.id
-      WHERE us.user_id = ?
-      AND us.type = 'TEACH'
-      AND us.skill_id IN (
-        SELECT skill_id
-        FROM user_skills
-        WHERE user_id = ?
-        AND type = 'LEARN'
-      )
-      `,
-      [matchId, userId]
-    );
+    // ------------------------------------
+    // Skills they can teach
+    // that current user wants to learn
+    // ------------------------------------
+    const [teachingSkills] =
+      await pool.query(
+        `
+        SELECT
+          s.id,
+          s.name,
+          s.description,
+          us.level
+        FROM user_skills us
 
-    // Skills this user wants to learn that current user teaches
-    const [learningSkills] = await pool.query(
-      `
-      SELECT
-        s.id,
-        s.name,
-        s.category,
-        us.level
-      FROM user_skills us
-      JOIN skills s
-        ON us.skill_id = s.id
-      WHERE us.user_id = ?
-      AND us.type = 'LEARN'
-      AND us.skill_id IN (
-        SELECT skill_id
-        FROM user_skills
-        WHERE user_id = ?
-        AND type = 'TEACH'
-      )
-      `,
-      [matchId, userId]
-    );
+        INNER JOIN skills s
+          ON us.skill_id = s.id
 
-    res.status(200).json({
+        WHERE us.user_id = ?
+          AND us.type = 'TEACH'
+          AND us.skill_id IN (
+            SELECT skill_id
+            FROM user_skills
+            WHERE user_id = ?
+              AND type = 'LEARN'
+          )
+
+        ORDER BY s.name ASC
+        `,
+        [
+          matchUserId,
+          currentUserId,
+        ]
+      );
+
+    // ------------------------------------
+    // Skills they want to learn
+    // that current user can teach
+    // ------------------------------------
+    const [learningSkills] =
+      await pool.query(
+        `
+        SELECT
+          s.id,
+          s.name,
+          s.description,
+          us.level
+        FROM user_skills us
+
+        INNER JOIN skills s
+          ON us.skill_id = s.id
+
+        WHERE us.user_id = ?
+          AND us.type = 'LEARN'
+          AND us.skill_id IN (
+            SELECT skill_id
+            FROM user_skills
+            WHERE user_id = ?
+              AND type = 'TEACH'
+          )
+
+        ORDER BY s.name ASC
+        `,
+        [
+          matchUserId,
+          currentUserId,
+        ]
+      );
+
+    // ------------------------------------
+    // Calculate simple compatibility count
+    // ------------------------------------
+    const skillsTheyCanTeach =
+      teachingSkills.length;
+
+    const skillsTheyWantToLearn =
+      learningSkills.length;
+
+    const compatibilityScore =
+      skillsTheyCanTeach +
+      skillsTheyWantToLearn;
+
+    // ------------------------------------
+    // Response
+    // ------------------------------------
+    return res.status(200).json({
       success: true,
+
       match: {
         user: matchedUser,
-        skillsTheyCanTeach: teachingSkills,
-        skillsTheyWantToLearn: learningSkills,
+
+        skillsTheyCanTeach:
+          teachingSkills,
+
+        skillsTheyWantToLearn:
+          learningSkills,
+
+        compatibilityScore,
       },
     });
-
   } catch (error) {
-    console.error("Get match error:", error.message);
+    console.error(
+      "Get match error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to get match",
     });
   }
 };
 
-
 module.exports = {
   getMatches,
   getMatchById,
 };
+

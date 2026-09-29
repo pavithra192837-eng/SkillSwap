@@ -1,13 +1,14 @@
+
 const jwt = require("jsonwebtoken");
 
-// =========================
+// ========================================
 // AUTHENTICATION MIDDLEWARE
-// =========================
+// ========================================
 const authMiddleware = (req, res, next) => {
   try {
-    // =========================
+    // ========================================
     // GET AUTHORIZATION HEADER
-    // =========================
+    // ========================================
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -17,7 +18,7 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // Expected:
+    // Expected format:
     // Authorization: Bearer TOKEN
 
     const parts = authHeader.split(" ");
@@ -35,21 +36,22 @@ const authMiddleware = (req, res, next) => {
 
     const token = parts[1];
 
-    // =========================
+    // ========================================
     // VERIFY JWT
-    // =========================
+    // ========================================
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
     );
 
-    // =========================
-    // STORE USER IN REQUEST
-    // =========================
+    // ========================================
+    // STORE USER ID IN REQUEST
+    // ========================================
     req.user = {
       id: decoded.id,
     };
 
+    // Continue to controller
     next();
 
   } catch (error) {
@@ -58,9 +60,9 @@ const authMiddleware = (req, res, next) => {
       error.message
     );
 
-    // =========================
+    // ========================================
     // TOKEN EXPIRED
-    // =========================
+    // ========================================
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
@@ -68,9 +70,9 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // =========================
+    // ========================================
     // INVALID TOKEN
-    // =========================
+    // ========================================
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
@@ -78,9 +80,9 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // =========================
-    // OTHER AUTH ERROR
-    // =========================
+    // ========================================
+    // OTHER AUTHENTICATION ERROR
+    // ========================================
     return res.status(401).json({
       success: false,
       message: "Authentication failed",
@@ -89,3 +91,4 @@ const authMiddleware = (req, res, next) => {
 };
 
 module.exports = authMiddleware;
+

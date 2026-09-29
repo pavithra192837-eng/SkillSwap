@@ -1,172 +1,252 @@
+
 const { pool } = require("../config/db");
 
-// =========================
+// ========================================
 // SEND REQUEST
 // POST /api/requests
-// =========================
+// ========================================
 const sendRequest = async (req, res) => {
   try {
     const senderId = req.user.id;
 
     const {
-      receiverId,
-      senderSkillId,
-      receiverSkillId,
+      receiver_id,
+      offered_skill_id,
+      requested_skill_id,
       message,
     } = req.body;
 
+    // ------------------------------------
     // Validate required fields
+    // ------------------------------------
     if (
-      !receiverId ||
-      !senderSkillId ||
-      !receiverSkillId
+      !receiver_id ||
+      !offered_skill_id ||
+      !requested_skill_id
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "Receiver ID, sender skill ID and receiver skill ID are required",
+          "Receiver ID, offered skill ID and requested skill ID are required",
       });
     }
 
+    // ------------------------------------
     // Cannot send request to yourself
-    if (Number(receiverId) === Number(senderId)) {
+    // ------------------------------------
+    if (
+      Number(receiver_id) ===
+      Number(senderId)
+    ) {
       return res.status(400).json({
         success: false,
-        message: "You cannot send a request to yourself",
+        message:
+          "You cannot send a request to yourself",
       });
     }
 
-    // =========================
-    // CHECK RECEIVER
-    // =========================
-    const [users] = await pool.query(
+    // ------------------------------------
+    // Check receiver exists
+    // ------------------------------------
+    const [receivers] = await pool.query(
       `
       SELECT id
       FROM users
       WHERE id = ?
       `,
-      [receiverId]
+      [receiver_id]
     );
 
-    if (users.length === 0) {
+    if (receivers.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Receiver not found",
       });
     }
 
-    // =========================
-    // CHECK SENDER SKILL
-    // Sender must actually TEACH this skill
-    // =========================
-    const [senderSkills] = await pool.query(
-      `
-      SELECT id, skill_id
-      FROM user_skills
-      WHERE id = ?
-      AND user_id = ?
-      AND type = 'TEACH'
-      `,
-      [senderSkillId, senderId]
-    );
+    // ------------------------------------
+    // Check offered skill
+    //
+    // Sender must TEACH this skill
+    // ------------------------------------
+    const [offeredSkills] =
+      await pool.query(
+        `
+        SELECT
+          id,
+          skill_id,
+          type,
+          level
+        FROM user_skills
+        WHERE user_id = ?
+          AND skill_id = ?
+          AND type = 'TEACH'
+        `,
+        [
+          senderId,
+          offered_skill_id,
+        ]
+      );
 
-    if (senderSkills.length === 0) {
+    if (offeredSkills.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Invalid sender skill",
+        message:
+          "You do not teach the offered skill",
       });
     }
 
-    // =========================
-    // CHECK RECEIVER SKILL
-    // Receiver must actually TEACH this skill
-    // =========================
-    const [receiverSkills] = await pool.query(
-      `
-      SELECT id, skill_id
-      FROM user_skills
-      WHERE id = ?
-      AND user_id = ?
-      AND type = 'TEACH'
-      `,
-      [receiverSkillId, receiverId]
-    );
+    // ------------------------------------
+    // Check requested skill
+    //
+    // Receiver must TEACH this skill
+    // ------------------------------------
+    const [requestedSkills] =
+      await pool.query(
+        `
+        SELECT
+          id,
+          skill_id,
+          type,
+          level
+        FROM user_skills
+        WHERE user_id = ?
+          AND skill_id = ?
+          AND type = 'TEACH'
+        `,
+        [
+          receiver_id,
+          requested_skill_id,
+        ]
+      );
 
-    if (receiverSkills.length === 0) {
+    if (requestedSkills.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Invalid receiver skill",
+        message:
+          "Receiver does not teach the requested skill",
       });
     }
 
-    // =========================
-    // CHECK FOR EXISTING PENDING REQUEST
-    // =========================
-    const [existingRequests] = await pool.query(
-      `
-      SELECT id
-      FROM exchange_requests
-      WHERE sender_id = ?
-      AND receiver_id = ?
-      AND status = 'pending'
-      `,
-      [senderId, receiverId]
-    );
+    // ------------------------------------
+    // Check existing pending request
+    // ------------------------------------
+    const [existingRequests] =
+      await pool.query(
+        `
+        SELECT id
+        FROM exchange_requests
+        WHERE sender_id = ?
+          AND receiver_id = ?
+          AND offered_skill_id = ?
+          AND requested_skill_id = ?
+          AND status = 'PENDING'
+        `,
+        [
+          senderId,
+          receiver_id,
+          offered_skill_id,
+          requested_skill_id,
+        ]
+      );
 
     if (existingRequests.length > 0) {
       return res.status(409).json({
         success: false,
-        message: "A pending request already exists",
+        message:
+          "A pending request already exists for these skills",
       });
     }
 
-    // =========================
-    // CREATE REQUEST
-    // =========================
+    // ------------------------------------
+    // Create exchange request
+    // ------------------------------------
     const [result] = await pool.query(
       `
       INSERT INTO exchange_requests
       (
         sender_id,
         receiver_id,
-        sender_skill_id,
-        receiver_skill_id,
+        offered_skill_id,
+        requested_skill_id,
         message,
         status
       )
-      VALUES (?, ?, ?, ?, ?, 'pending')
+      VALUES (?, ?, ?, ?, ?, 'PENDING')
       `,
       [
         senderId,
-        receiverId,
-        senderSkillId,
-        receiverSkillId,
+        receiver_id,
+        offered_skill_id,
+        requested_skill_id,
         message || null,
       ]
     );
 
-    res.status(201).json({
+    // ------------------------------------
+    // Create notification for receiver
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES (?, ?, ?, ?, ?, FALSE)
+      `,
+      [
+        receiver_id,
+        "EXCHANGE_REQUEST",
+        "New exchange request",
+        "You received a new skill exchange request.",
+        result.insertId,
+      ]
+    );
+
+    return res.status(201).json({
       success: true,
-      message: "Exchange request sent successfully",
-      requestId: result.insertId,
+      message:
+        "Exchange request sent successfully",
+
+      request: {
+        id: result.insertId,
+        sender_id: senderId,
+        receiver_id: Number(receiver_id),
+        offered_skill_id:
+          Number(offered_skill_id),
+        requested_skill_id:
+          Number(requested_skill_id),
+        message: message || null,
+        status: "PENDING",
+      },
     });
-
   } catch (error) {
-    console.error("Send request error:", error.message);
+    console.error(
+      "Send request error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to send request",
+      message:
+        "Failed to send exchange request",
     });
   }
 };
 
-
-// =========================
-// GET RECEIVED REQUESTS
-// GET /api/requests/received
-// =========================
-const getReceivedRequests = async (req, res) => {
+// ========================================
+// GET INCOMING REQUESTS
+// GET /api/requests/incoming
+// ========================================
+const getIncomingRequests = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
 
@@ -177,31 +257,38 @@ const getReceivedRequests = async (req, res) => {
         er.sender_id,
         er.receiver_id,
 
-        er.sender_skill_id,
-        er.receiver_skill_id,
+        er.offered_skill_id,
+        er.requested_skill_id,
 
         er.message,
         er.status,
         er.created_at,
+        er.updated_at,
 
-        u.name AS sender_name,
-        u.email AS sender_email,
-        u.bio AS sender_bio,
-        u.profile_image AS sender_profile_image,
+        sender.name AS sender_name,
+        sender.email AS sender_email,
+        sender.phone AS sender_phone,
+        sender.college AS sender_college,
+        sender.roll_no AS sender_roll_no,
+        sender.department AS sender_department,
+        sender.bio AS sender_bio,
+        sender.profile_image AS sender_profile_image,
 
-        sender_skill.name AS sender_skill_name,
-        receiver_skill.name AS receiver_skill_name
+        offered_skill.name AS offered_skill_name,
+        requested_skill.name AS requested_skill_name
 
       FROM exchange_requests er
 
-      JOIN users u
-        ON er.sender_id = u.id
+      INNER JOIN users sender
+        ON er.sender_id = sender.id
 
-      JOIN skills sender_skill
-        ON er.sender_skill_id = sender_skill.id
+      INNER JOIN skills offered_skill
+        ON er.offered_skill_id =
+           offered_skill.id
 
-      JOIN skills receiver_skill
-        ON er.receiver_skill_id = receiver_skill.id
+      INNER JOIN skills requested_skill
+        ON er.requested_skill_id =
+           requested_skill.id
 
       WHERE er.receiver_id = ?
 
@@ -210,31 +297,33 @@ const getReceivedRequests = async (req, res) => {
       [userId]
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: requests.length,
       requests,
     });
-
   } catch (error) {
     console.error(
-      "Get received requests error:",
+      "Get incoming requests error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to get received requests",
+      message:
+        "Failed to get incoming requests",
     });
   }
 };
 
-
-// =========================
-// GET SENT REQUESTS
-// GET /api/requests/sent
-// =========================
-const getSentRequests = async (req, res) => {
+// ========================================
+// GET OUTGOING REQUESTS
+// GET /api/requests/outgoing
+// ========================================
+const getOutgoingRequests = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
 
@@ -245,31 +334,38 @@ const getSentRequests = async (req, res) => {
         er.sender_id,
         er.receiver_id,
 
-        er.sender_skill_id,
-        er.receiver_skill_id,
+        er.offered_skill_id,
+        er.requested_skill_id,
 
         er.message,
         er.status,
         er.created_at,
+        er.updated_at,
 
-        u.name AS receiver_name,
-        u.email AS receiver_email,
-        u.bio AS receiver_bio,
-        u.profile_image AS receiver_profile_image,
+        receiver.name AS receiver_name,
+        receiver.email AS receiver_email,
+        receiver.phone AS receiver_phone,
+        receiver.college AS receiver_college,
+        receiver.roll_no AS receiver_roll_no,
+        receiver.department AS receiver_department,
+        receiver.bio AS receiver_bio,
+        receiver.profile_image AS receiver_profile_image,
 
-        sender_skill.name AS sender_skill_name,
-        receiver_skill.name AS receiver_skill_name
+        offered_skill.name AS offered_skill_name,
+        requested_skill.name AS requested_skill_name
 
       FROM exchange_requests er
 
-      JOIN users u
-        ON er.receiver_id = u.id
+      INNER JOIN users receiver
+        ON er.receiver_id = receiver.id
 
-      JOIN skills sender_skill
-        ON er.sender_skill_id = sender_skill.id
+      INNER JOIN skills offered_skill
+        ON er.offered_skill_id =
+           offered_skill.id
 
-      JOIN skills receiver_skill
-        ON er.receiver_skill_id = receiver_skill.id
+      INNER JOIN skills requested_skill
+        ON er.requested_skill_id =
+           requested_skill.id
 
       WHERE er.sender_id = ?
 
@@ -278,45 +374,145 @@ const getSentRequests = async (req, res) => {
       [userId]
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: requests.length,
       requests,
     });
-
   } catch (error) {
     console.error(
-      "Get sent requests error:",
+      "Get outgoing requests error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to get sent requests",
+      message:
+        "Failed to get outgoing requests",
     });
   }
 };
 
-
-// =========================
-// ACCEPT REQUEST
-// PUT /api/requests/:id/accept
-// =========================
-const acceptRequest = async (req, res) => {
+// ========================================
+// GET REQUEST BY ID
+// GET /api/requests/:id
+// ========================================
+const getRequestById = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
     const requestId = req.params.id;
 
-    // Find request belonging to current receiver
     const [requests] = await pool.query(
       `
-      SELECT *
-      FROM exchange_requests
-      WHERE id = ?
-      AND receiver_id = ?
+      SELECT
+        er.id,
+        er.sender_id,
+        er.receiver_id,
+
+        er.offered_skill_id,
+        er.requested_skill_id,
+
+        er.message,
+        er.status,
+        er.created_at,
+        er.updated_at,
+
+        sender.name AS sender_name,
+        sender.email AS sender_email,
+        sender.roll_no AS sender_roll_no,
+
+        receiver.name AS receiver_name,
+        receiver.email AS receiver_email,
+        receiver.roll_no AS receiver_roll_no,
+
+        offered_skill.name AS offered_skill_name,
+        requested_skill.name AS requested_skill_name
+
+      FROM exchange_requests er
+
+      INNER JOIN users sender
+        ON er.sender_id = sender.id
+
+      INNER JOIN users receiver
+        ON er.receiver_id = receiver.id
+
+      INNER JOIN skills offered_skill
+        ON er.offered_skill_id =
+           offered_skill.id
+
+      INNER JOIN skills requested_skill
+        ON er.requested_skill_id =
+           requested_skill.id
+
+      WHERE er.id = ?
+        AND (
+          er.sender_id = ?
+          OR er.receiver_id = ?
+        )
       `,
-      [requestId, userId]
+      [
+        requestId,
+        userId,
+        userId,
+      ]
     );
+
+    if (requests.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      request: requests[0],
+    });
+  } catch (error) {
+    console.error(
+      "Get request error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to get request",
+    });
+  }
+};
+
+// ========================================
+// ACCEPT REQUEST
+// PUT /api/requests/:id/accept
+// ========================================
+const acceptRequest = async (
+  req,
+  res
+) => {
+  try {
+    const userId = req.user.id;
+    const requestId = req.params.id;
+
+    // ------------------------------------
+    // Find request for receiver
+    // ------------------------------------
+    const [requests] =
+      await pool.query(
+        `
+        SELECT *
+        FROM exchange_requests
+        WHERE id = ?
+          AND receiver_id = ?
+        `,
+        [
+          requestId,
+          userId,
+        ]
+      );
 
     if (requests.length === 0) {
       return res.status(404).json({
@@ -327,8 +523,10 @@ const acceptRequest = async (req, res) => {
 
     const request = requests[0];
 
-    // Check status
-    if (request.status !== "pending") {
+    // ------------------------------------
+    // Check current status
+    // ------------------------------------
+    if (request.status !== "PENDING") {
       return res.status(400).json({
         success: false,
         message:
@@ -336,54 +534,90 @@ const acceptRequest = async (req, res) => {
       });
     }
 
-    // Update request
+    // ------------------------------------
+    // Accept request
+    // ------------------------------------
     await pool.query(
       `
       UPDATE exchange_requests
-      SET status = 'accepted'
+      SET status = 'ACCEPTED'
       WHERE id = ?
       `,
       [requestId]
     );
 
-    res.status(200).json({
-      success: true,
-      message: "Exchange request accepted",
-    });
+    // ------------------------------------
+    // Notify sender
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES (?, ?, ?, ?, ?, FALSE)
+      `,
+      [
+        request.sender_id,
+        "REQUEST_ACCEPTED",
+        "Exchange request accepted",
+        "Your skill exchange request has been accepted.",
+        requestId,
+      ]
+    );
 
+    return res.status(200).json({
+      success: true,
+      message:
+        "Exchange request accepted",
+    });
   } catch (error) {
     console.error(
       "Accept request error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to accept request",
+      message:
+        "Failed to accept request",
     });
   }
 };
 
-
-// =========================
+// ========================================
 // REJECT REQUEST
 // PUT /api/requests/:id/reject
-// =========================
-const rejectRequest = async (req, res) => {
+// ========================================
+const rejectRequest = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
     const requestId = req.params.id;
 
-    // Make sure request belongs to current user
-    const [requests] = await pool.query(
-      `
-      SELECT *
-      FROM exchange_requests
-      WHERE id = ?
-      AND receiver_id = ?
-      `,
-      [requestId, userId]
-    );
+    // ------------------------------------
+    // Find request for receiver
+    // ------------------------------------
+    const [requests] =
+      await pool.query(
+        `
+        SELECT *
+        FROM exchange_requests
+        WHERE id = ?
+          AND receiver_id = ?
+        `,
+        [
+          requestId,
+          userId,
+        ]
+      );
 
     if (requests.length === 0) {
       return res.status(404).json({
@@ -394,8 +628,10 @@ const rejectRequest = async (req, res) => {
 
     const request = requests[0];
 
-    // Check status
-    if (request.status !== "pending") {
+    // ------------------------------------
+    // Check current status
+    // ------------------------------------
+    if (request.status !== "PENDING") {
       return res.status(400).json({
         success: false,
         message:
@@ -403,39 +639,174 @@ const rejectRequest = async (req, res) => {
       });
     }
 
-    // Update request
+    // ------------------------------------
+    // Reject request
+    // ------------------------------------
     await pool.query(
       `
       UPDATE exchange_requests
-      SET status = 'rejected'
+      SET status = 'REJECTED'
       WHERE id = ?
       `,
       [requestId]
     );
 
-    res.status(200).json({
-      success: true,
-      message: "Exchange request rejected",
-    });
+    // ------------------------------------
+    // Notify sender
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES (?, ?, ?, ?, ?, FALSE)
+      `,
+      [
+        request.sender_id,
+        "REQUEST_REJECTED",
+        "Exchange request rejected",
+        "Your skill exchange request has been rejected.",
+        requestId,
+      ]
+    );
 
+    return res.status(200).json({
+      success: true,
+      message:
+        "Exchange request rejected",
+    });
   } catch (error) {
     console.error(
       "Reject request error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to reject request",
+      message:
+        "Failed to reject request",
     });
   }
 };
 
+// ========================================
+// CANCEL REQUEST
+// DELETE /api/requests/:id
+// ========================================
+const cancelRequest = async (
+  req,
+  res
+) => {
+  try {
+    const userId = req.user.id;
+    const requestId = req.params.id;
+
+    // ------------------------------------
+    // Sender can cancel their request
+    // ------------------------------------
+    const [requests] =
+      await pool.query(
+        `
+        SELECT *
+        FROM exchange_requests
+        WHERE id = ?
+          AND sender_id = ?
+        `,
+        [
+          requestId,
+          userId,
+        ]
+      );
+
+    if (requests.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
+    }
+
+    const request = requests[0];
+
+    // ------------------------------------
+    // Only pending requests can cancel
+    // ------------------------------------
+    if (request.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message:
+          `Cannot cancel a ${request.status.toLowerCase()} request`,
+      });
+    }
+
+    // ------------------------------------
+    // Cancel request
+    // ------------------------------------
+    await pool.query(
+      `
+      UPDATE exchange_requests
+      SET status = 'CANCELLED'
+      WHERE id = ?
+      `,
+      [requestId]
+    );
+
+    // ------------------------------------
+    // Notify receiver
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES (?, ?, ?, ?, ?, FALSE)
+      `,
+      [
+        request.receiver_id,
+        "REQUEST_CANCELLED",
+        "Exchange request cancelled",
+        "An exchange request has been cancelled.",
+        requestId,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Exchange request cancelled",
+    });
+  } catch (error) {
+    console.error(
+      "Cancel request error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to cancel request",
+    });
+  }
+};
 
 module.exports = {
   sendRequest,
-  getReceivedRequests,
-  getSentRequests,
+  getIncomingRequests,
+  getOutgoingRequests,
+  getRequestById,
   acceptRequest,
   rejectRequest,
+  cancelRequest,
 };
+

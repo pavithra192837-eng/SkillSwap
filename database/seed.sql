@@ -1,3 +1,4 @@
+
 -- ============================================
 -- SkillSwap Seed Data
 -- ============================================
@@ -6,164 +7,185 @@ USE skillswap;
 
 
 -- ============================================
--- SAMPLE SKILLS
+-- 1. SAMPLE SKILL CATEGORIES
+-- ============================================
+
+INSERT INTO skill_categories (name)
+VALUES
+    ('Programming'),
+    ('Web Development'),
+    ('Database'),
+    ('Design'),
+    ('Media'),
+    ('Marketing'),
+    ('Communication'),
+    ('Language'),
+    ('Data & AI'),
+    ('Development Tools'),
+    ('Backend Development')
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name);
+
+
+-- ============================================
+-- 2. SAMPLE SKILLS
 -- ============================================
 
 INSERT INTO skills
-    (name, category, description)
+    (name, category_id, description)
 VALUES
-
 (
     'JavaScript',
-    'Programming',
+    (SELECT id FROM skill_categories WHERE name = 'Programming'),
     'Programming language used for web development'
 ),
 
 (
     'React',
-    'Programming',
+    (SELECT id FROM skill_categories WHERE name = 'Programming'),
     'JavaScript library for building user interfaces'
 ),
 
 (
     'Python',
-    'Programming',
+    (SELECT id FROM skill_categories WHERE name = 'Programming'),
     'Programming language used for software and AI development'
 ),
 
 (
     'Java',
-    'Programming',
+    (SELECT id FROM skill_categories WHERE name = 'Programming'),
     'Programming language for application development'
 ),
 
 (
     'C++',
-    'Programming',
+    (SELECT id FROM skill_categories WHERE name = 'Programming'),
     'Programming language used for software and system development'
 ),
 
 (
     'HTML',
-    'Web Development',
+    (SELECT id FROM skill_categories WHERE name = 'Web Development'),
     'Markup language used to structure web pages'
 ),
 
 (
     'CSS',
-    'Web Development',
+    (SELECT id FROM skill_categories WHERE name = 'Web Development'),
     'Language used to style web pages'
 ),
 
 (
     'SQL',
-    'Database',
+    (SELECT id FROM skill_categories WHERE name = 'Database'),
     'Language used to manage relational databases'
 ),
 
 (
     'UI/UX Design',
-    'Design',
+    (SELECT id FROM skill_categories WHERE name = 'Design'),
     'Designing user interfaces and user experiences'
 ),
 
 (
     'Graphic Design',
-    'Design',
+    (SELECT id FROM skill_categories WHERE name = 'Design'),
     'Creating visual content and digital graphics'
 ),
 
 (
     'Video Editing',
-    'Media',
+    (SELECT id FROM skill_categories WHERE name = 'Media'),
     'Editing and producing video content'
 ),
 
 (
     'Photography',
-    'Media',
+    (SELECT id FROM skill_categories WHERE name = 'Media'),
     'Taking and editing photographs'
 ),
 
 (
     'Digital Marketing',
-    'Marketing',
+    (SELECT id FROM skill_categories WHERE name = 'Marketing'),
     'Marketing products and services through digital platforms'
 ),
 
 (
     'Content Writing',
-    'Communication',
+    (SELECT id FROM skill_categories WHERE name = 'Communication'),
     'Creating written content for digital platforms'
 ),
 
 (
     'Public Speaking',
-    'Communication',
+    (SELECT id FROM skill_categories WHERE name = 'Communication'),
     'Communicating ideas effectively to an audience'
 ),
 
 (
     'Communication',
-    'Communication',
+    (SELECT id FROM skill_categories WHERE name = 'Communication'),
     'Developing effective verbal and written communication skills'
 ),
 
 (
     'English',
-    'Language',
+    (SELECT id FROM skill_categories WHERE name = 'Language'),
     'English language learning and communication'
 ),
 
 (
     'Data Science',
-    'Data & AI',
+    (SELECT id FROM skill_categories WHERE name = 'Data & AI'),
     'Analyzing data to discover useful insights'
 ),
 
 (
     'Machine Learning',
-    'Data & AI',
+    (SELECT id FROM skill_categories WHERE name = 'Data & AI'),
     'Building systems that learn from data'
 ),
 
 (
     'Git & GitHub',
-    'Development Tools',
+    (SELECT id FROM skill_categories WHERE name = 'Development Tools'),
     'Version control and collaborative software development'
 ),
 
 (
     'Node.js',
-    'Backend Development',
+    (SELECT id FROM skill_categories WHERE name = 'Backend Development'),
     'JavaScript runtime for backend development'
 ),
 
 (
     'Express.js',
-    'Backend Development',
+    (SELECT id FROM skill_categories WHERE name = 'Backend Development'),
     'Web framework for Node.js'
 ),
 
 (
     'MySQL',
-    'Database',
+    (SELECT id FROM skill_categories WHERE name = 'Database'),
     'Relational database management system'
 ),
 
 (
     'Figma',
-    'Design',
+    (SELECT id FROM skill_categories WHERE name = 'Design'),
     'Tool for UI/UX design and prototyping'
 ),
 
 (
     'Video Production',
-    'Media',
+    (SELECT id FROM skill_categories WHERE name = 'Media'),
     'Planning, recording, and producing videos'
-);
+)
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name);
 
 
 -- ============================================
 -- END OF SEED DATA
--- ============================================

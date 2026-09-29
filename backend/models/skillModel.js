@@ -1,162 +1,190 @@
+
 const { pool } = require("../config/db");
 
-// =========================
+// ========================================
 // FIND ALL SKILLS
-// =========================
+// ========================================
 const findAllSkills = async () => {
   const [rows] = await pool.query(
     `
-    SELECT
-      id,
-      name,
-      category,
-      description,
-      created_at
-    FROM skills
-    ORDER BY name ASC
+      SELECT
+        s.id,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+        s.created_at
+
+      FROM skills s
+
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+
+      ORDER BY s.name ASC
     `
   );
 
   return rows;
 };
 
-
-// =========================
+// ========================================
 // FIND SKILL BY ID
-// =========================
-const findSkillById = async (skillId) => {
+// ========================================
+const findSkillById = async (
+  skillId
+) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      id,
-      name,
-      category,
-      description,
-      created_at
-    FROM skills
-    WHERE id = ?
+      SELECT
+        s.id,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+        s.created_at
+
+      FROM skills s
+
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+
+      WHERE s.id = ?
+
+      LIMIT 1
     `,
     [skillId]
   );
 
-  return rows[0] || null;
+  return rows.length > 0
+    ? rows[0]
+    : null;
 };
 
-
-// =========================
+// ========================================
 // FIND SKILL BY NAME
-// =========================
-const findSkillByName = async (name) => {
+// ========================================
+const findSkillByName = async (
+  name
+) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      id,
-      name,
-      category,
-      description,
-      created_at
-    FROM skills
-    WHERE LOWER(name) = LOWER(?)
+      SELECT
+        s.id,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+        s.created_at
+
+      FROM skills s
+
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+
+      WHERE LOWER(s.name) = LOWER(?)
+
+      LIMIT 1
     `,
     [name]
   );
 
-  return rows[0] || null;
+  return rows.length > 0
+    ? rows[0]
+    : null;
 };
 
-
-// =========================
+// ========================================
 // CREATE SKILL
-// =========================
+// ========================================
 const createSkill = async ({
   name,
-  category,
-  description,
+  category_id = null,
+  description = null,
 }) => {
   const [result] = await pool.query(
     `
-    INSERT INTO skills
-    (
-      name,
-      category,
-      description
-    )
-    VALUES (?, ?, ?)
+      INSERT INTO skills
+      (
+        name,
+        category_id,
+        description
+      )
+      VALUES (?, ?, ?)
     `,
     [
       name,
-      category || null,
-      description || null,
+      category_id,
+      description,
     ]
   );
 
   return result.insertId;
 };
 
-
-// =========================
+// ========================================
 // ADD USER SKILL
-// =========================
+// ========================================
 const addUserSkill = async ({
   userId,
   skillId,
   type,
-  level,
+  level = "BEGINNER",
 }) => {
-  const skillLevel = level || "BEGINNER";
-
   const [result] = await pool.query(
     `
-    INSERT INTO user_skills
-    (
-      user_id,
-      skill_id,
-      type,
-      level,
-      verified
-    )
-    VALUES (?, ?, ?, ?, FALSE)
+      INSERT INTO user_skills
+      (
+        user_id,
+        skill_id,
+        type,
+        level
+      )
+      VALUES (?, ?, ?, ?)
     `,
     [
       userId,
       skillId,
       type,
-      skillLevel,
+      level,
     ]
   );
 
   return result.insertId;
 };
 
-
-// =========================
+// ========================================
 // FIND USER SKILLS
-// =========================
-const findUserSkills = async (userId) => {
+// ========================================
+const findUserSkills = async (
+  userId
+) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      us.id,
-      us.user_id,
-      us.skill_id,
+      SELECT
+        us.id,
+        us.user_id,
+        us.skill_id,
 
-      s.name,
-      s.category,
-      s.description,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
 
-      us.type,
-      us.level,
-      us.verified,
-      us.created_at
+        us.type,
+        us.level,
+        us.created_at
 
-    FROM user_skills us
+      FROM user_skills us
 
-    JOIN skills s
-      ON us.skill_id = s.id
+      INNER JOIN skills s
+        ON us.skill_id = s.id
 
-    WHERE us.user_id = ?
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
 
-    ORDER BY s.name ASC
+      WHERE us.user_id = ?
+
+      ORDER BY s.name ASC
     `,
     [userId]
   );
@@ -164,10 +192,60 @@ const findUserSkills = async (userId) => {
   return rows;
 };
 
+// ========================================
+// FIND USER SKILL BY RECORD ID
+// ========================================
+//
+// Here skillRecordId means:
+// user_skills.id
+//
+const findUserSkillById = async (
+  userId,
+  skillRecordId
+) => {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        us.id,
+        us.user_id,
+        us.skill_id,
 
-// =========================
-// FIND USER SKILL
-// =========================
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+
+        us.type,
+        us.level,
+        us.created_at
+
+      FROM user_skills us
+
+      INNER JOIN skills s
+        ON us.skill_id = s.id
+
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+
+      WHERE us.id = ?
+        AND us.user_id = ?
+
+      LIMIT 1
+    `,
+    [
+      skillRecordId,
+      userId,
+    ]
+  );
+
+  return rows.length > 0
+    ? rows[0]
+    : null;
+};
+
+// ========================================
+// FIND USER SKILL BY SKILL + TYPE
+// ========================================
 const findUserSkill = async (
   userId,
   skillId,
@@ -175,28 +253,33 @@ const findUserSkill = async (
 ) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      us.id,
-      us.user_id,
-      us.skill_id,
+      SELECT
+        us.id,
+        us.user_id,
+        us.skill_id,
 
-      s.name,
-      s.category,
-      s.description,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
 
-      us.type,
-      us.level,
-      us.verified,
-      us.created_at
+        us.type,
+        us.level,
+        us.created_at
 
-    FROM user_skills us
+      FROM user_skills us
 
-    JOIN skills s
-      ON us.skill_id = s.id
+      INNER JOIN skills s
+        ON us.skill_id = s.id
 
-    WHERE us.user_id = ?
-      AND us.skill_id = ?
-      AND us.type = ?
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+
+      WHERE us.user_id = ?
+        AND us.skill_id = ?
+        AND us.type = ?
+
+      LIMIT 1
     `,
     [
       userId,
@@ -205,68 +288,92 @@ const findUserSkill = async (
     ]
   );
 
-  return rows[0] || null;
+  return rows.length > 0
+    ? rows[0]
+    : null;
 };
 
-
-// =========================
+// ========================================
 // DELETE USER SKILL
-// =========================
+// ========================================
+//
+// Deletes by user_skills.id
+//
 const deleteUserSkill = async (
   userId,
-  skillId,
-  type
+  skillRecordId
 ) => {
   const [result] = await pool.query(
     `
-    DELETE FROM user_skills
-    WHERE user_id = ?
-      AND skill_id = ?
-      AND type = ?
+      DELETE FROM user_skills
+      WHERE id = ?
+        AND user_id = ?
     `,
     [
+      skillRecordId,
       userId,
-      skillId,
-      type,
     ]
   );
 
   return result.affectedRows > 0;
 };
 
-
-// =========================
+// ========================================
 // UPDATE USER SKILL
-// =========================
+// ========================================
+//
+// Updates by user_skills.id
+//
 const updateUserSkill = async (
   userId,
-  skillId,
-  type,
-  level
+  skillRecordId,
+  updates
 ) => {
+  const fields = [];
+  const values = [];
+
+  // ----------------------------------------
+  // Update type
+  // ----------------------------------------
+  if (updates.type !== undefined) {
+    fields.push("type = ?");
+    values.push(updates.type);
+  }
+
+  // ----------------------------------------
+  // Update level
+  // ----------------------------------------
+  if (updates.level !== undefined) {
+    fields.push("level = ?");
+    values.push(updates.level);
+  }
+
+  // Nothing to update
+  if (fields.length === 0) {
+    return false;
+  }
+
+  values.push(
+    skillRecordId,
+    userId
+  );
+
   const [result] = await pool.query(
     `
-    UPDATE user_skills
-    SET level = ?
-    WHERE user_id = ?
-      AND skill_id = ?
-      AND type = ?
+      UPDATE user_skills
+      SET ${fields.join(", ")}
+      WHERE id = ?
+        AND user_id = ?
     `,
-    [
-      level,
-      userId,
-      skillId,
-      type,
-    ]
+    values
   );
 
   return result.affectedRows > 0;
 };
 
-
-// =========================
+// ========================================
 // EXPORT
-// =========================
+// ========================================
 module.exports = {
   findAllSkills,
   findSkillById,
@@ -274,7 +381,9 @@ module.exports = {
   createSkill,
   addUserSkill,
   findUserSkills,
+  findUserSkillById,
   findUserSkill,
   deleteUserSkill,
   updateUserSkill,
 };
+

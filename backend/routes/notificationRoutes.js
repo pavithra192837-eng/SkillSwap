@@ -1,4 +1,4 @@
-
+id="j5q2rm"
 const express = require("express");
 
 const router = express.Router();
@@ -6,29 +6,28 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 
 const {
-  getMatches,
-  getMatchById,
-} = require("../controllers/matchController");
+  getNotifications,
+  markNotificationAsRead,
+} = require("../controllers/notificationController");
 
 // ========================================
-// GET ALL MATCHES
-// GET /api/matches
+// GET ALL NOTIFICATIONS
+// GET /api/notifications
 // ========================================
 router.get(
   "/",
   authMiddleware,
-  getMatches
+  getNotifications
 );
 
 // ========================================
-// GET MATCH BY USER ID
-// GET /api/matches/:userId
+// MARK NOTIFICATION AS READ
+// PUT /api/notifications/:id/read
 // ========================================
-router.get(
-  "/:userId",
+router.put(
+  "/:id/read",
   authMiddleware,
-  getMatchById
+  markNotificationAsRead
 );
 
 module.exports = router;
-

@@ -1,149 +1,162 @@
+
 const { pool } = require("../config/db");
 
-// =========================
+// ========================================
 // CREATE SESSION
-// =========================
+// ========================================
 const createSession = async ({
-  requestId,
-  hostId,
-  participantId,
-  scheduledAt,
-  meetingLink,
+  request_id,
+  user1_id,
+  user2_id,
+  scheduled_at,
+  meeting_id = null,
 }) => {
   const [result] = await pool.query(
     `
-    INSERT INTO sessions
-    (
-      request_id,
-      host_id,
-      participant_id,
-      scheduled_at,
-      meeting_link,
-      status
-    )
-    VALUES (?, ?, ?, ?, ?, 'scheduled')
+      INSERT INTO sessions
+      (
+        request_id,
+        user1_id,
+        user2_id,
+        scheduled_at,
+        status,
+        meeting_id
+      )
+      VALUES (?, ?, ?, ?, 'SCHEDULED', ?)
     `,
     [
-      requestId,
-      hostId,
-      participantId,
-      scheduledAt,
-      meetingLink || null,
+      request_id,
+      user1_id,
+      user2_id,
+      scheduled_at,
+      meeting_id,
     ]
   );
 
   return result.insertId;
 };
 
-
-// =========================
+// ========================================
 // FIND SESSION BY ID
-// =========================
-const findSessionById = async (sessionId) => {
+// ========================================
+const findSessionById = async (
+  sessionId
+) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      s.id,
-      s.request_id,
-      s.host_id,
-      s.participant_id,
-      s.scheduled_at,
-      s.meeting_link,
-      s.status,
-      s.created_at,
-      s.updated_at,
+      SELECT
+        s.id,
+        s.request_id,
+        s.user1_id,
+        s.user2_id,
+        s.scheduled_at,
+        s.status,
+        s.meeting_id,
+        s.created_at,
+        s.updated_at,
 
-      host.name AS host_name,
-      participant.name AS participant_name
+        u1.name AS user1_name,
+        u2.name AS user2_name
 
-    FROM sessions s
+      FROM sessions s
 
-    JOIN users host
-      ON s.host_id = host.id
+      INNER JOIN users u1
+        ON s.user1_id = u1.id
 
-    JOIN users participant
-      ON s.participant_id = participant.id
+      INNER JOIN users u2
+        ON s.user2_id = u2.id
 
-    WHERE s.id = ?
+      WHERE s.id = ?
+      LIMIT 1
     `,
     [sessionId]
   );
 
-  return rows[0] || null;
+  return rows.length > 0
+    ? rows[0]
+    : null;
 };
 
-
-// =========================
+// ========================================
 // GET USER SESSIONS
-// =========================
-const findSessionsByUserId = async (userId) => {
+// ========================================
+const findSessionsByUserId = async (
+  userId
+) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      s.id,
-      s.request_id,
-      s.host_id,
-      s.participant_id,
-      s.scheduled_at,
-      s.meeting_link,
-      s.status,
-      s.created_at,
-      s.updated_at,
+      SELECT
+        s.id,
+        s.request_id,
+        s.user1_id,
+        s.user2_id,
+        s.scheduled_at,
+        s.status,
+        s.meeting_id,
+        s.created_at,
+        s.updated_at,
 
-      host.name AS host_name,
-      participant.name AS participant_name
+        u1.name AS user1_name,
+        u2.name AS user2_name
 
-    FROM sessions s
+      FROM sessions s
 
-    JOIN users host
-      ON s.host_id = host.id
+      INNER JOIN users u1
+        ON s.user1_id = u1.id
 
-    JOIN users participant
-      ON s.participant_id = participant.id
+      INNER JOIN users u2
+        ON s.user2_id = u2.id
 
-    WHERE s.host_id = ?
-       OR s.participant_id = ?
+      WHERE s.user1_id = ?
+         OR s.user2_id = ?
 
-    ORDER BY s.scheduled_at DESC
+      ORDER BY s.scheduled_at DESC
     `,
-    [userId, userId]
+    [
+      userId,
+      userId,
+    ]
   );
 
   return rows;
 };
 
-
-// =========================
-// FIND SESSION BY REQUEST
-// =========================
-const findSessionByRequestId = async (requestId) => {
+// ========================================
+// FIND SESSION BY REQUEST ID
+// ========================================
+const findSessionByRequestId = async (
+  requestId
+) => {
   const [rows] = await pool.query(
     `
-    SELECT
-      id,
-      request_id,
-      host_id,
-      participant_id,
-      scheduled_at,
-      meeting_link,
-      status,
-      created_at,
-      updated_at
+      SELECT
+        id,
+        request_id,
+        user1_id,
+        user2_id,
+        scheduled_at,
+        status,
+        meeting_id,
+        created_at,
+        updated_at
 
-    FROM sessions
+      FROM sessions
 
-    WHERE request_id = ?
+      WHERE request_id = ?
+
+      LIMIT 1
     `,
     [requestId]
   );
 
-  return rows[0] || null;
+  return rows.length > 0
+    ? rows[0]
+    : null;
 };
 
-
-// =========================
+// ========================================
 // UPDATE SESSION
-// =========================
+// ========================================
 const updateSession = async (
   sessionId,
   updates
@@ -151,36 +164,60 @@ const updateSession = async (
   const fields = [];
   const values = [];
 
+  // ----------------------------------------
   // Scheduled time
-  if (updates.scheduledAt !== undefined) {
+  // ----------------------------------------
+  if (
+    updates.scheduled_at !== undefined
+  ) {
     fields.push("scheduled_at = ?");
-    values.push(updates.scheduledAt);
+    values.push(
+      updates.scheduled_at
+    );
   }
 
-  // Meeting link
-  if (updates.meetingLink !== undefined) {
-    fields.push("meeting_link = ?");
-    values.push(updates.meetingLink);
+  // ----------------------------------------
+  // Meeting ID
+  // ----------------------------------------
+  if (
+    updates.meeting_id !== undefined
+  ) {
+    fields.push("meeting_id = ?");
+    values.push(
+      updates.meeting_id
+    );
   }
 
+  // ----------------------------------------
   // Status
-  if (updates.status !== undefined) {
+  // ----------------------------------------
+  if (
+    updates.status !== undefined
+  ) {
     const allowedStatuses = [
-      "scheduled",
-      "ongoing",
-      "completed",
-      "cancelled",
+      "SCHEDULED",
+      "ONGOING",
+      "COMPLETED",
+      "CANCELLED",
     ];
 
-    if (!allowedStatuses.includes(updates.status)) {
-      throw new Error("Invalid session status");
+    if (
+      !allowedStatuses.includes(
+        updates.status
+      )
+    ) {
+      throw new Error(
+        "Invalid session status"
+      );
     }
 
     fields.push("status = ?");
     values.push(updates.status);
   }
 
+  // ----------------------------------------
   // Nothing to update
+  // ----------------------------------------
   if (fields.length === 0) {
     return false;
   }
@@ -189,9 +226,9 @@ const updateSession = async (
 
   const [result] = await pool.query(
     `
-    UPDATE sessions
-    SET ${fields.join(", ")}
-    WHERE id = ?
+      UPDATE sessions
+      SET ${fields.join(", ")}
+      WHERE id = ?
     `,
     values
   );
@@ -199,16 +236,18 @@ const updateSession = async (
   return result.affectedRows > 0;
 };
 
-
-// =========================
-// COMPLETE SESSION
-// =========================
-const completeSession = async (sessionId) => {
+// ========================================
+// START SESSION
+// ========================================
+const startSession = async (
+  sessionId
+) => {
   const [result] = await pool.query(
     `
-    UPDATE sessions
-    SET status = 'completed'
-    WHERE id = ?
+      UPDATE sessions
+      SET status = 'ONGOING'
+      WHERE id = ?
+        AND status = 'SCHEDULED'
     `,
     [sessionId]
   );
@@ -216,15 +255,72 @@ const completeSession = async (sessionId) => {
   return result.affectedRows > 0;
 };
 
+// ========================================
+// COMPLETE SESSION
+// ========================================
+const completeSession = async (
+  sessionId
+) => {
+  const [result] = await pool.query(
+    `
+      UPDATE sessions
+      SET status = 'COMPLETED'
+      WHERE id = ?
+        AND status = 'ONGOING'
+    `,
+    [sessionId]
+  );
 
-// =========================
+  return result.affectedRows > 0;
+};
+
+// ========================================
+// CANCEL SESSION
+// ========================================
+const cancelSession = async (
+  sessionId
+) => {
+  const [result] = await pool.query(
+    `
+      UPDATE sessions
+      SET status = 'CANCELLED'
+      WHERE id = ?
+        AND status IN (
+          'SCHEDULED',
+          'ONGOING'
+        )
+    `,
+    [sessionId]
+  );
+
+  return result.affectedRows > 0;
+};
+
+// ========================================
+// DELETE / CANCEL SESSION
+// ========================================
+//
+// We keep the session record for history
+// and change its status to CANCELLED.
+//
+const deleteSession = async (
+  sessionId
+) => {
+  return cancelSession(sessionId);
+};
+
+// ========================================
 // EXPORT
-// =========================
+// ========================================
 module.exports = {
   createSession,
   findSessionById,
   findSessionsByUserId,
   findSessionByRequestId,
   updateSession,
+  startSession,
   completeSession,
+  cancelSession,
+  deleteSession,
 };
+

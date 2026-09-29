@@ -1,132 +1,188 @@
+
 const { pool } = require("../config/db");
 
-// =========================
+// ========================================
 // CREATE SESSION
 // POST /api/sessions
-// =========================
+// ========================================
 const createSession = async (req, res) => {
   try {
     const userId = req.user.id;
 
     const {
-      requestId,
-      scheduledAt,
-      meetingLink,
+      request_id,
+      scheduled_at,
+      meeting_id,
     } = req.body;
 
-    if (!requestId || !scheduledAt) {
+    // ------------------------------------
+    // Validate required fields
+    // ------------------------------------
+    if (!request_id || !scheduled_at) {
       return res.status(400).json({
         success: false,
-        message: "Request ID and scheduled time are required",
+        message:
+          "Request ID and scheduled time are required",
       });
     }
 
-    // =========================
-    // GET ACCEPTED REQUEST
-    // =========================
+    // ------------------------------------
+    // Get accepted request
+    // ------------------------------------
     const [requests] = await pool.query(
       `
-      SELECT *
+      SELECT
+        id,
+        sender_id,
+        receiver_id,
+        status
       FROM exchange_requests
       WHERE id = ?
-      AND status = 'accepted'
+        AND status = 'ACCEPTED'
       `,
-      [requestId]
+      [request_id]
     );
 
     if (requests.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Accepted request not found",
+        message:
+          "Accepted exchange request not found",
       });
     }
 
     const request = requests[0];
 
-    // =========================
-    // CHECK USER IS PART OF REQUEST
-    // =========================
+    // ------------------------------------
+    // Check user belongs to request
+    // ------------------------------------
     if (
-      Number(request.sender_id) !== Number(userId) &&
-      Number(request.receiver_id) !== Number(userId)
+      Number(request.sender_id) !==
+        Number(userId) &&
+      Number(request.receiver_id) !==
+        Number(userId)
     ) {
       return res.status(403).json({
         success: false,
-        message: "You are not part of this request",
+        message:
+          "You are not part of this exchange request",
       });
     }
 
-    // =========================
-    // CHECK EXISTING SESSION
-    // =========================
-    const [existingSessions] = await pool.query(
-      `
-      SELECT id
-      FROM sessions
-      WHERE request_id = ?
-      `,
-      [requestId]
-    );
+    // ------------------------------------
+    // Check existing session
+    // ------------------------------------
+    const [existingSessions] =
+      await pool.query(
+        `
+        SELECT id
+        FROM sessions
+        WHERE request_id = ?
+        `,
+        [request_id]
+      );
 
     if (existingSessions.length > 0) {
       return res.status(409).json({
         success: false,
-        message: "A session already exists for this request",
+        message:
+          "A session already exists for this request",
       });
     }
 
-    // =========================
-    // CREATE SESSION
-    // =========================
-    const hostId = request.sender_id;
-    const participantId = request.receiver_id;
+    // ------------------------------------
+    // Create session
+    // ------------------------------------
+    const user1Id = request.sender_id;
+    const user2Id = request.receiver_id;
 
     const [result] = await pool.query(
       `
       INSERT INTO sessions
       (
         request_id,
-        host_id,
-        participant_id,
+        user1_id,
+        user2_id,
         scheduled_at,
         status,
-        meeting_link
+        meeting_id
       )
-      VALUES (?, ?, ?, ?, 'scheduled', ?)
+      VALUES (?, ?, ?, ?, 'SCHEDULED', ?)
       `,
       [
-        requestId,
-        hostId,
-        participantId,
-        scheduledAt,
-        meetingLink || null,
+        request_id,
+        user1Id,
+        user2Id,
+        scheduled_at,
+        meeting_id || null,
       ]
     );
 
-    res.status(201).json({
-      success: true,
-      message: "Session created successfully",
-      sessionId: result.insertId,
-    });
+    // ------------------------------------
+    // Notify both users
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES
+      (?, 'SESSION_CREATED', ?, ?, ?, FALSE),
+      (?, 'SESSION_CREATED', ?, ?, ?, FALSE)
+      `,
+      [
+        user1Id,
+        "Session scheduled",
+        "A new skill exchange session has been scheduled.",
+        result.insertId,
 
+        user2Id,
+        "Session scheduled",
+        "A new skill exchange session has been scheduled.",
+        result.insertId,
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Session created successfully",
+
+      session: {
+        id: result.insertId,
+        request_id: Number(request_id),
+        user1_id: user1Id,
+        user2_id: user2Id,
+        scheduled_at,
+        status: "SCHEDULED",
+        meeting_id:
+          meeting_id || null,
+      },
+    });
   } catch (error) {
     console.error(
       "Create session error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to create session",
+      message:
+        "Failed to create session",
     });
   }
 };
 
-
-// =========================
+// ========================================
 // GET MY SESSIONS
 // GET /api/sessions
-// =========================
+// ========================================
 const getSessions = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -136,57 +192,64 @@ const getSessions = async (req, res) => {
       SELECT
         s.id,
         s.request_id,
-        s.host_id,
-        s.participant_id,
+        s.user1_id,
+        s.user2_id,
         s.scheduled_at,
         s.status,
-        s.meeting_link,
+        s.meeting_id,
         s.created_at,
+        s.updated_at,
 
-        host.name AS host_name,
-        participant.name AS participant_name
+        user1.name AS user1_name,
+        user1.roll_no AS user1_roll_no,
+
+        user2.name AS user2_name,
+        user2.roll_no AS user2_roll_no
 
       FROM sessions s
 
-      JOIN users host
-        ON s.host_id = host.id
+      INNER JOIN users user1
+        ON s.user1_id = user1.id
 
-      JOIN users participant
-        ON s.participant_id = participant.id
+      INNER JOIN users user2
+        ON s.user2_id = user2.id
 
-      WHERE s.host_id = ?
-         OR s.participant_id = ?
+      WHERE
+        s.user1_id = ?
+        OR s.user2_id = ?
 
       ORDER BY s.scheduled_at DESC
       `,
       [userId, userId]
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: sessions.length,
       sessions,
     });
-
   } catch (error) {
     console.error(
       "Get sessions error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to get sessions",
+      message:
+        "Failed to get sessions",
     });
   }
 };
 
-
-// =========================
+// ========================================
 // GET SESSION BY ID
 // GET /api/sessions/:id
-// =========================
-const getSessionById = async (req, res) => {
+// ========================================
+const getSessionById = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
     const sessionId = req.params.id;
@@ -196,31 +259,39 @@ const getSessionById = async (req, res) => {
       SELECT
         s.id,
         s.request_id,
-        s.host_id,
-        s.participant_id,
+        s.user1_id,
+        s.user2_id,
         s.scheduled_at,
         s.status,
-        s.meeting_link,
+        s.meeting_id,
         s.created_at,
+        s.updated_at,
 
-        host.name AS host_name,
-        participant.name AS participant_name
+        user1.name AS user1_name,
+        user1.roll_no AS user1_roll_no,
+
+        user2.name AS user2_name,
+        user2.roll_no AS user2_roll_no
 
       FROM sessions s
 
-      JOIN users host
-        ON s.host_id = host.id
+      INNER JOIN users user1
+        ON s.user1_id = user1.id
 
-      JOIN users participant
-        ON s.participant_id = participant.id
+      INNER JOIN users user2
+        ON s.user2_id = user2.id
 
       WHERE s.id = ?
-      AND (
-        s.host_id = ?
-        OR s.participant_id = ?
-      )
+        AND (
+          s.user1_id = ?
+          OR s.user2_id = ?
+        )
       `,
-      [sessionId, userId, userId]
+      [
+        sessionId,
+        userId,
+        userId,
+      ]
     );
 
     if (sessions.length === 0) {
@@ -230,54 +301,59 @@ const getSessionById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       session: sessions[0],
     });
-
   } catch (error) {
     console.error(
       "Get session error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to get session",
+      message:
+        "Failed to get session",
     });
   }
 };
 
-
-// =========================
+// ========================================
 // UPDATE SESSION
 // PUT /api/sessions/:id
-// =========================
-const updateSession = async (req, res) => {
+// ========================================
+const updateSession = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
     const sessionId = req.params.id;
 
     const {
-      scheduledAt,
-      meetingLink,
-      status,
+      scheduled_at,
+      meeting_id,
     } = req.body;
 
-    // =========================
-    // CHECK SESSION OWNERSHIP
-    // =========================
+    // ------------------------------------
+    // Check session ownership
+    // ------------------------------------
     const [sessions] = await pool.query(
       `
       SELECT *
       FROM sessions
       WHERE id = ?
-      AND (
-        host_id = ?
-        OR participant_id = ?
-      )
+        AND (
+          user1_id = ?
+          OR user2_id = ?
+        )
       `,
-      [sessionId, userId, userId]
+      [
+        sessionId,
+        userId,
+        userId,
+      ]
     );
 
     if (sessions.length === 0) {
@@ -287,45 +363,40 @@ const updateSession = async (req, res) => {
       });
     }
 
-    // =========================
-    // BUILD UPDATE
-    // =========================
     const updates = [];
     const values = [];
 
-    if (scheduledAt !== undefined) {
-      updates.push("scheduled_at = ?");
-      values.push(scheduledAt);
+    // ------------------------------------
+    // Update scheduled time
+    // ------------------------------------
+    if (
+      scheduled_at !== undefined
+    ) {
+      updates.push(
+        "scheduled_at = ?"
+      );
+      values.push(scheduled_at);
     }
 
-    if (meetingLink !== undefined) {
-      updates.push("meeting_link = ?");
-      values.push(meetingLink);
-    }
-
-    if (status !== undefined) {
-      const allowedStatuses = [
-        "scheduled",
-        "ongoing",
-        "completed",
-        "cancelled",
-      ];
-
-      if (!allowedStatuses.includes(status)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid session status",
-        });
-      }
-
-      updates.push("status = ?");
-      values.push(status);
+    // ------------------------------------
+    // Update meeting ID
+    // ------------------------------------
+    if (
+      meeting_id !== undefined
+    ) {
+      updates.push(
+        "meeting_id = ?"
+      );
+      values.push(
+        meeting_id || null
+      );
     }
 
     if (updates.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "No fields to update",
+        message:
+          "No valid fields to update",
       });
     }
 
@@ -340,48 +411,52 @@ const updateSession = async (req, res) => {
       values
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Session updated successfully",
+      message:
+        "Session updated successfully",
     });
-
   } catch (error) {
     console.error(
       "Update session error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to update session",
+      message:
+        "Failed to update session",
     });
   }
 };
 
-
-// =========================
-// COMPLETE SESSION
-// PUT /api/sessions/:id/complete
-// =========================
-const completeSession = async (req, res) => {
+// ========================================
+// START SESSION
+// PUT /api/sessions/:id/start
+// ========================================
+const startSession = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
     const sessionId = req.params.id;
 
-    // =========================
-    // VERIFY USER BELONGS TO SESSION
-    // =========================
     const [sessions] = await pool.query(
       `
       SELECT *
       FROM sessions
       WHERE id = ?
-      AND (
-        host_id = ?
-        OR participant_id = ?
-      )
+        AND (
+          user1_id = ?
+          OR user2_id = ?
+        )
       `,
-      [sessionId, userId, userId]
+      [
+        sessionId,
+        userId,
+        userId,
+      ]
     );
 
     if (sessions.length === 0) {
@@ -393,55 +468,294 @@ const completeSession = async (req, res) => {
 
     const session = sessions[0];
 
-    if (session.status === "completed") {
+    if (session.status === "ONGOING") {
       return res.status(400).json({
         success: false,
-        message: "Session is already completed",
+        message:
+          "Session is already ongoing",
       });
     }
 
-    if (session.status === "cancelled") {
+    if (session.status === "COMPLETED") {
       return res.status(400).json({
         success: false,
-        message: "Cancelled sessions cannot be completed",
+        message:
+          "Completed sessions cannot be started",
       });
     }
 
-    // =========================
-    // MARK SESSION COMPLETED
-    // =========================
+    if (session.status === "CANCELLED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cancelled sessions cannot be started",
+      });
+    }
+
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'completed'
+      SET status = 'ONGOING'
       WHERE id = ?
       `,
       [sessionId]
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Session completed successfully",
+      message:
+        "Session started successfully",
     });
+  } catch (error) {
+    console.error(
+      "Start session error:",
+      error.message
+    );
 
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to start session",
+    });
+  }
+};
+
+// ========================================
+// COMPLETE SESSION
+// PUT /api/sessions/:id/complete
+// ========================================
+const completeSession = async (
+  req,
+  res
+) => {
+  try {
+    const userId = req.user.id;
+    const sessionId = req.params.id;
+
+    const [sessions] = await pool.query(
+      `
+      SELECT *
+      FROM sessions
+      WHERE id = ?
+        AND (
+          user1_id = ?
+          OR user2_id = ?
+        )
+      `,
+      [
+        sessionId,
+        userId,
+        userId,
+      ]
+    );
+
+    if (sessions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Session not found",
+      });
+    }
+
+    const session = sessions[0];
+
+    if (session.status === "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Session is already completed",
+      });
+    }
+
+    if (session.status === "CANCELLED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cancelled sessions cannot be completed",
+      });
+    }
+
+    await pool.query(
+      `
+      UPDATE sessions
+      SET status = 'COMPLETED'
+      WHERE id = ?
+      `,
+      [sessionId]
+    );
+
+    // ------------------------------------
+    // Notify both participants
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES
+      (?, 'SESSION_COMPLETED', ?, ?, ?, FALSE),
+      (?, 'SESSION_COMPLETED', ?, ?, ?, FALSE)
+      `,
+      [
+        session.user1_id,
+        "Session completed",
+        "Your skill exchange session has been completed.",
+        sessionId,
+
+        session.user2_id,
+        "Session completed",
+        "Your skill exchange session has been completed.",
+        sessionId,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Session completed successfully",
+    });
   } catch (error) {
     console.error(
       "Complete session error:",
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to complete session",
+      message:
+        "Failed to complete session",
     });
   }
 };
 
+// ========================================
+// CANCEL / DELETE SESSION
+// DELETE /api/sessions/:id
+// ========================================
+const deleteSession = async (
+  req,
+  res
+) => {
+  try {
+    const userId = req.user.id;
+    const sessionId = req.params.id;
+
+    const [sessions] = await pool.query(
+      `
+      SELECT *
+      FROM sessions
+      WHERE id = ?
+        AND (
+          user1_id = ?
+          OR user2_id = ?
+        )
+      `,
+      [
+        sessionId,
+        userId,
+        userId,
+      ]
+    );
+
+    if (sessions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Session not found",
+      });
+    }
+
+    const session = sessions[0];
+
+    if (session.status === "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Completed sessions cannot be cancelled",
+      });
+    }
+
+    if (session.status === "CANCELLED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Session is already cancelled",
+      });
+    }
+
+    // ------------------------------------
+    // Mark as cancelled
+    // ------------------------------------
+    await pool.query(
+      `
+      UPDATE sessions
+      SET status = 'CANCELLED'
+      WHERE id = ?
+      `,
+      [sessionId]
+    );
+
+    // ------------------------------------
+    // Notify both participants
+    // ------------------------------------
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (
+        user_id,
+        type,
+        title,
+        message,
+        reference_id,
+        is_read
+      )
+      VALUES
+      (?, 'SESSION_CANCELLED', ?, ?, ?, FALSE),
+      (?, 'SESSION_CANCELLED', ?, ?, ?, FALSE)
+      `,
+      [
+        session.user1_id,
+        "Session cancelled",
+        "Your skill exchange session has been cancelled.",
+        sessionId,
+
+        session.user2_id,
+        "Session cancelled",
+        "Your skill exchange session has been cancelled.",
+        sessionId,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Session cancelled successfully",
+    });
+  } catch (error) {
+    console.error(
+      "Delete session error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to cancel session",
+    });
+  }
+};
 
 module.exports = {
   createSession,
   getSessions,
   getSessionById,
   updateSession,
+  startSession,
   completeSession,
+  deleteSession,
 };
+

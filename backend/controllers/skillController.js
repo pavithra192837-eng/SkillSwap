@@ -1,42 +1,52 @@
+
 const { pool } = require("../config/db");
 
-// =========================
+// ========================================
 // GET ALL SKILLS
 // GET /api/skills
-// =========================
+// ========================================
 const getSkills = async (req, res) => {
   try {
     const [skills] = await pool.query(`
       SELECT
-        id,
-        name,
-        category,
-        description
-      FROM skills
-      ORDER BY name ASC
+        s.id,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+        s.created_at
+      FROM skills s
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+      ORDER BY s.name ASC
     `);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: skills.length,
       skills,
     });
   } catch (error) {
-    console.error("Get skills error:", error);
+    console.error(
+      "Get skills error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to get skills",
-      error: error.message,
     });
   }
 };
 
-
-// =========================
+// ========================================
 // GET SKILL BY ID
 // GET /api/skills/:id
-// =========================
+//
+// This endpoint is useful for the frontend,
+// although it is not explicitly listed in the
+// provided API specification.
+// ========================================
 const getSkillById = async (req, res) => {
   try {
     const skillId = req.params.id;
@@ -44,12 +54,16 @@ const getSkillById = async (req, res) => {
     const [skills] = await pool.query(
       `
       SELECT
-        id,
-        name,
-        category,
-        description
-      FROM skills
-      WHERE id = ?
+        s.id,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+        s.created_at
+      FROM skills s
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+      WHERE s.id = ?
       `,
       [skillId]
     );
@@ -61,50 +75,61 @@ const getSkillById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       skill: skills[0],
     });
   } catch (error) {
-    console.error("Get skill error:", error);
+    console.error(
+      "Get skill error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to get skill",
-      error: error.message,
     });
   }
 };
 
-
-// =========================
+// ========================================
 // CREATE SKILL
 // POST /api/skills
-// =========================
+//
+// This is an admin/setup-style operation.
+// The provided API specification explicitly
+// lists GET /api/skills, but does not list
+// POST /api/skills.
+// ========================================
 const createSkill = async (req, res) => {
   try {
     const {
       name,
-      category,
+      category_id,
       description,
     } = req.body;
 
-    if (!name) {
+    if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
         message: "Skill name is required",
       });
     }
 
-    // Check if skill already exists
-    const [existingSkills] = await pool.query(
-      `
-      SELECT id
-      FROM skills
-      WHERE LOWER(name) = LOWER(?)
-      `,
-      [name]
-    );
+    const skillName = name.trim();
+
+    // ------------------------------------
+    // Check duplicate skill
+    // ------------------------------------
+    const [existingSkills] =
+      await pool.query(
+        `
+        SELECT id
+        FROM skills
+        WHERE LOWER(name) = LOWER(?)
+        `,
+        [skillName]
+      );
 
     if (existingSkills.length > 0) {
       return res.status(409).json({
@@ -113,71 +138,170 @@ const createSkill = async (req, res) => {
       });
     }
 
+    // ------------------------------------
+    // Validate category if provided
+    // ------------------------------------
+    if (category_id !== undefined &&
+        category_id !== null) {
+      const [categories] =
+        await pool.query(
+          `
+          SELECT id
+          FROM skill_categories
+          WHERE id = ?
+          `,
+          [category_id]
+        );
+
+      if (categories.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Skill category not found",
+        });
+      }
+    }
+
+    // ------------------------------------
     // Create skill
+    // ------------------------------------
     const [result] = await pool.query(
       `
       INSERT INTO skills
       (
         name,
-        category,
+        category_id,
         description
       )
       VALUES (?, ?, ?)
       `,
       [
-        name,
-        category || null,
+        skillName,
+        category_id ?? null,
         description || null,
       ]
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Skill created successfully",
 
       skill: {
         id: result.insertId,
-        name,
-        category: category || null,
-        description: description || null,
+        name: skillName,
+        category_id:
+          category_id ?? null,
+        description:
+          description || null,
       },
     });
-
   } catch (error) {
-    console.error("Create skill error:", error);
+    console.error(
+      "Create skill error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to create skill",
-      error: error.message,
     });
   }
 };
 
+// ========================================
+// GET MY SKILLS
+// GET /api/users/me/skills
+// ========================================
+const getUserSkills = async (req, res) => {
+  try {
+    const userId = req.user.id;
 
-// =========================
+    const [skills] = await pool.query(
+      `
+      SELECT
+        us.id,
+        us.user_id,
+        us.skill_id,
+
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description,
+
+        us.type,
+        us.level,
+        us.created_at
+
+      FROM user_skills us
+
+      INNER JOIN skills s
+        ON us.skill_id = s.id
+
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+
+      WHERE us.user_id = ?
+
+      ORDER BY s.name ASC
+      `,
+      [userId]
+    );
+
+    const teach = skills.filter(
+      (skill) => skill.type === "TEACH"
+    );
+
+    const learn = skills.filter(
+      (skill) => skill.type === "LEARN"
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: skills.length,
+      teach,
+      learn,
+      skills,
+    });
+  } catch (error) {
+    console.error(
+      "Get user skills error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get user skills",
+    });
+  }
+};
+
+// ========================================
 // ADD SKILL TO MY PROFILE
-// POST /api/skills/user
-// =========================
+// POST /api/users/me/skills
+// ========================================
 const addUserSkill = async (req, res) => {
   try {
     const userId = req.user.id;
 
     const {
-      skillId,
+      skill_id,
       type,
       level,
     } = req.body;
 
+    // ------------------------------------
     // Validate required fields
-    if (!skillId || !type) {
+    // ------------------------------------
+    if (!skill_id || !type) {
       return res.status(400).json({
         success: false,
-        message: "Skill ID and skill type are required",
+        message:
+          "Skill ID and skill type are required",
       });
     }
 
-    // Validate skill type
+    // ------------------------------------
+    // Validate type
+    // ------------------------------------
     const allowedTypes = [
       "TEACH",
       "LEARN",
@@ -186,39 +310,48 @@ const addUserSkill = async (req, res) => {
     if (!allowedTypes.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Skill type must be TEACH or LEARN",
+        message:
+          "Skill type must be TEACH or LEARN",
       });
     }
 
-    // Validate skill level
+    // ------------------------------------
+    // Validate level
+    // ------------------------------------
     const allowedLevels = [
       "BEGINNER",
       "INTERMEDIATE",
       "ADVANCED",
-      "EXPERT",
     ];
 
-    const skillLevel = level || "BEGINNER";
+    const skillLevel =
+      level || "BEGINNER";
 
     if (!allowedLevels.includes(skillLevel)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid skill level",
+        message:
+          "Skill level must be BEGINNER, INTERMEDIATE or ADVANCED",
       });
     }
 
-    // Check if skill exists
+    // ------------------------------------
+    // Check skill exists
+    // ------------------------------------
     const [skills] = await pool.query(
       `
       SELECT
-        id,
-        name,
-        category,
-        description
-      FROM skills
-      WHERE id = ?
+        s.id,
+        s.name,
+        s.category_id,
+        sc.name AS category_name,
+        s.description
+      FROM skills s
+      LEFT JOIN skill_categories sc
+        ON s.category_id = sc.id
+      WHERE s.id = ?
       `,
-      [skillId]
+      [skill_id]
     );
 
     if (skills.length === 0) {
@@ -228,30 +361,36 @@ const addUserSkill = async (req, res) => {
       });
     }
 
+    // ------------------------------------
     // Check duplicate
-    const [existingUserSkills] = await pool.query(
-      `
-      SELECT id
-      FROM user_skills
-      WHERE user_id = ?
-      AND skill_id = ?
-      AND type = ?
-      `,
-      [
-        userId,
-        skillId,
-        type,
-      ]
-    );
+    // ------------------------------------
+    const [existingUserSkills] =
+      await pool.query(
+        `
+        SELECT id
+        FROM user_skills
+        WHERE user_id = ?
+          AND skill_id = ?
+          AND type = ?
+        `,
+        [
+          userId,
+          skill_id,
+          type,
+        ]
+      );
 
     if (existingUserSkills.length > 0) {
       return res.status(409).json({
         success: false,
-        message: "This skill is already added",
+        message:
+          "This skill is already added to your profile",
       });
     }
 
-    // Add skill to user
+    // ------------------------------------
+    // Add skill
+    // ------------------------------------
     const [result] = await pool.query(
       `
       INSERT INTO user_skills
@@ -259,191 +398,281 @@ const addUserSkill = async (req, res) => {
         user_id,
         skill_id,
         type,
-        level,
-        verified
+        level
       )
-      VALUES (?, ?, ?, ?, false)
+      VALUES (?, ?, ?, ?)
       `,
       [
         userId,
-        skillId,
+        skill_id,
         type,
         skillLevel,
       ]
     );
 
-    res.status(201).json({
+    const skill = skills[0];
+
+    return res.status(201).json({
       success: true,
-      message: "Skill added successfully",
+      message:
+        "Skill added successfully",
 
-      userSkillId: result.insertId,
+      user_skill: {
+        id: result.insertId,
+        user_id: userId,
+        skill_id: skill.id,
 
-      skill: {
-        id: skills[0].id,
-        name: skills[0].name,
-        category: skills[0].category,
-        description: skills[0].description,
+        name: skill.name,
+        category_id:
+          skill.category_id,
+        category_name:
+          skill.category_name,
+        description:
+          skill.description,
+
         type,
         level: skillLevel,
-        verified: false,
       },
     });
-
   } catch (error) {
-    console.error("Add user skill error:", error);
+    console.error(
+      "Add user skill error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to add skill",
-      error: error.message,
+      message:
+        "Failed to add skill",
     });
   }
 };
 
-
-// =========================
-// DELETE SKILL FROM MY PROFILE
-// DELETE /api/skills/user/:skillId
-// =========================
-const deleteUserSkill = async (req, res) => {
+// ========================================
+// UPDATE MY SKILL
+// PUT /api/users/me/skills/:id
+//
+// :id = user_skills.id
+// ========================================
+const updateUserSkill = async (
+  req,
+  res
+) => {
   try {
     const userId = req.user.id;
-    const skillId = req.params.skillId;
+    const userSkillId = req.params.id;
 
-    const { type } = req.body;
+    const {
+      type,
+      level,
+    } = req.body;
 
-    // Validate type
-    if (!type) {
-      return res.status(400).json({
+    // ------------------------------------
+    // Check user skill ownership
+    // ------------------------------------
+    const [userSkills] =
+      await pool.query(
+        `
+        SELECT *
+        FROM user_skills
+        WHERE id = ?
+          AND user_id = ?
+        `,
+        [
+          userSkillId,
+          userId,
+        ]
+      );
+
+    if (userSkills.length === 0) {
+      return res.status(404).json({
         success: false,
-        message: "Skill type is required",
+        message:
+          "User skill not found",
       });
     }
 
-    if (!["TEACH", "LEARN"].includes(type)) {
+    const updates = [];
+    const values = [];
+
+    // ------------------------------------
+    // Validate/update type
+    // ------------------------------------
+    if (type !== undefined) {
+      if (
+        !["TEACH", "LEARN"].includes(type)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Skill type must be TEACH or LEARN",
+        });
+      }
+
+      updates.push("type = ?");
+      values.push(type);
+    }
+
+    // ------------------------------------
+    // Validate/update level
+    // ------------------------------------
+    if (level !== undefined) {
+      const allowedLevels = [
+        "BEGINNER",
+        "INTERMEDIATE",
+        "ADVANCED",
+      ];
+
+      if (
+        !allowedLevels.includes(level)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid skill level",
+        });
+      }
+
+      updates.push("level = ?");
+      values.push(level);
+    }
+
+    if (updates.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Skill type must be TEACH or LEARN",
+        message:
+          "No valid fields to update",
       });
     }
 
-    // Delete only the selected type
+    // ------------------------------------
+    // Prevent duplicate type
+    // ------------------------------------
+    const newType =
+      type !== undefined
+        ? type
+        : userSkills[0].type;
+
+    const [duplicate] =
+      await pool.query(
+        `
+        SELECT id
+        FROM user_skills
+        WHERE user_id = ?
+          AND skill_id = ?
+          AND type = ?
+          AND id != ?
+        `,
+        [
+          userId,
+          userSkills[0].skill_id,
+          newType,
+          userSkillId,
+        ]
+      );
+
+    if (duplicate.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This skill type already exists for your profile",
+      });
+    }
+
+    values.push(userSkillId);
+
+    await pool.query(
+      `
+      UPDATE user_skills
+      SET ${updates.join(", ")}
+      WHERE id = ?
+        AND user_id = ?
+      `,
+      [
+        ...values,
+        userId,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "User skill updated successfully",
+    });
+  } catch (error) {
+    console.error(
+      "Update user skill error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to update user skill",
+    });
+  }
+};
+
+// ========================================
+// DELETE SKILL FROM MY PROFILE
+// DELETE /api/users/me/skills/:id
+//
+// :id = user_skills.id
+// ========================================
+const deleteUserSkill = async (
+  req,
+  res
+) => {
+  try {
+    const userId = req.user.id;
+    const userSkillId = req.params.id;
+
     const [result] = await pool.query(
       `
       DELETE FROM user_skills
-      WHERE user_id = ?
-      AND skill_id = ?
-      AND type = ?
+      WHERE id = ?
+        AND user_id = ?
       `,
       [
+        userSkillId,
         userId,
-        skillId,
-        type,
       ]
     );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
         success: false,
-        message: "User skill not found",
+        message:
+          "User skill not found",
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Skill removed successfully",
+      message:
+        "Skill removed successfully",
     });
-
   } catch (error) {
     console.error(
       "Delete user skill error:",
-      error
+      error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to remove skill",
-      error: error.message,
+      message:
+        "Failed to remove skill",
     });
   }
 };
 
-
-// =========================
-// GET MY SKILLS
-// GET /api/skills/user/me
-// =========================
-const getUserSkills = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const [skills] = await pool.query(
-      `
-      SELECT
-        us.id,
-        us.skill_id,
-
-        s.name,
-        s.category,
-        s.description,
-
-        us.type,
-        us.level,
-        us.verified,
-
-        us.created_at
-
-      FROM user_skills us
-
-      JOIN skills s
-        ON us.skill_id = s.id
-
-      WHERE us.user_id = ?
-
-      ORDER BY s.name ASC
-      `,
-      [userId]
-    );
-
-    // Separate TEACH and LEARN
-    const teach = skills.filter(
-      (skill) => skill.type === "TEACH"
-    );
-
-    const learn = skills.filter(
-      (skill) => skill.type === "LEARN"
-    );
-
-    res.status(200).json({
-      success: true,
-      count: skills.length,
-      teach,
-      learn,
-    });
-
-  } catch (error) {
-    console.error(
-      "Get user skills error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to get user skills",
-      error: error.message,
-    });
-  }
-};
-
-
-// =========================
-// EXPORT
-// =========================
 module.exports = {
   getSkills,
   getSkillById,
   createSkill,
-  addUserSkill,
-  deleteUserSkill,
   getUserSkills,
+  addUserSkill,
+  updateUserSkill,
+  deleteUserSkill,
 };
+
