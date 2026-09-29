@@ -32,18 +32,76 @@ async function initializeDatabase() {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
+
         name VARCHAR(100) NOT NULL,
         email VARCHAR(150) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
+
+        phone VARCHAR(20),
+        college VARCHAR(150),
+        register_no VARCHAR(50),
+        department VARCHAR(100),
+
         bio TEXT,
         profile_image VARCHAR(500),
         location VARCHAR(255),
         availability VARCHAR(255),
+
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           ON UPDATE CURRENT_TIMESTAMP
       )
     `);
+
+    // =========================
+    // ADD NEW USER COLUMNS
+    // TO EXISTING DATABASE
+    // =========================
+
+    const [userColumns] = await connection.query(`
+      SHOW COLUMNS FROM users
+    `);
+
+    const existingColumns = userColumns.map(
+      (column) => column.Field
+    );
+
+    if (!existingColumns.includes("phone")) {
+      await connection.query(`
+        ALTER TABLE users
+        ADD COLUMN phone VARCHAR(20)
+      `);
+
+      console.log("✅ Added phone column");
+    }
+
+    if (!existingColumns.includes("college")) {
+      await connection.query(`
+        ALTER TABLE users
+        ADD COLUMN college VARCHAR(150)
+      `);
+
+      console.log("✅ Added college column");
+    }
+
+    if (!existingColumns.includes("register_no")) {
+      await connection.query(`
+        ALTER TABLE users
+        ADD COLUMN register_no VARCHAR(50)
+      `);
+
+      console.log("✅ Added register_no column");
+    }
+
+    if (!existingColumns.includes("department")) {
+      await connection.query(`
+        ALTER TABLE users
+        ADD COLUMN department VARCHAR(100)
+      `);
+
+      console.log("✅ Added department column");
+    }
 
     // =========================
     // SKILLS
@@ -51,9 +109,11 @@ async function initializeDatabase() {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS skills (
         id INT AUTO_INCREMENT PRIMARY KEY,
+
         name VARCHAR(100) NOT NULL UNIQUE,
         category VARCHAR(100),
         description TEXT,
+
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -64,10 +124,14 @@ async function initializeDatabase() {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS user_skills (
         id INT AUTO_INCREMENT PRIMARY KEY,
+
         user_id INT NOT NULL,
         skill_id INT NOT NULL,
 
-        type ENUM('TEACH', 'LEARN') NOT NULL,
+        type ENUM(
+          'TEACH',
+          'LEARN'
+        ) NOT NULL,
 
         level ENUM(
           'BEGINNER',
@@ -179,10 +243,15 @@ async function initializeDatabase() {
       )
     `);
 
-    console.log("✅ Database and tables initialized successfully.");
+    console.log(
+      "✅ Database and tables initialized successfully."
+    );
 
   } catch (error) {
-    console.error("❌ Database initialization failed:");
+    console.error(
+      "❌ Database initialization failed:"
+    );
+
     console.error(error.message);
 
     throw error;

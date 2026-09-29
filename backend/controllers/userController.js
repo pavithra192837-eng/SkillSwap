@@ -2,6 +2,7 @@ const { pool } = require("../config/db");
 
 // =========================
 // GET USER BY ID
+// GET /api/users/:id
 // =========================
 const getUserById = async (req, res) => {
   try {
@@ -13,6 +14,10 @@ const getUserById = async (req, res) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,
@@ -33,7 +38,9 @@ const getUserById = async (req, res) => {
 
     const user = users[0];
 
-    // Get user's skills
+    // =========================
+    // GET USER SKILLS
+    // =========================
     const [skills] = await pool.query(
       `
       SELECT
@@ -78,6 +85,7 @@ const getUserById = async (req, res) => {
         reputation,
       },
     });
+
   } catch (error) {
     console.error("Get user error:", error);
 
@@ -89,12 +97,13 @@ const getUserById = async (req, res) => {
   }
 };
 
+
 // =========================
 // UPDATE MY PROFILE
+// PUT /api/users/me
 // =========================
 const updateUser = async (req, res) => {
   try {
-    // User ID comes from JWT
     const userId = req.user.id;
 
     const {
@@ -138,7 +147,6 @@ const updateUser = async (req, res) => {
       values.push(availability);
     }
 
-    // Nothing to update
     if (updates.length === 0) {
       return res.status(400).json({
         success: false,
@@ -146,7 +154,6 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Add user ID for WHERE clause
     values.push(userId);
 
     await pool.query(
@@ -165,6 +172,10 @@ const updateUser = async (req, res) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,
@@ -188,6 +199,7 @@ const updateUser = async (req, res) => {
       message: "Profile updated successfully",
       user: users[0],
     });
+
   } catch (error) {
     console.error("Update user error:", error);
 
@@ -199,8 +211,10 @@ const updateUser = async (req, res) => {
   }
 };
 
+
 // =========================
 // GET ALL USERS
+// GET /api/users
 // =========================
 const getUsers = async (req, res) => {
   try {
@@ -212,6 +226,10 @@ const getUsers = async (req, res) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,
@@ -229,6 +247,7 @@ const getUsers = async (req, res) => {
       count: users.length,
       users,
     });
+
   } catch (error) {
     console.error("Get users error:", error);
 
@@ -240,8 +259,10 @@ const getUsers = async (req, res) => {
   }
 };
 
+
 // =========================
 // GET MY PROFILE
+// GET /api/users/me
 // =========================
 const getMyProfile = async (req, res) => {
   try {
@@ -253,6 +274,10 @@ const getMyProfile = async (req, res) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,
@@ -275,8 +300,12 @@ const getMyProfile = async (req, res) => {
       success: true,
       user: users[0],
     });
+
   } catch (error) {
-    console.error("Get my profile error:", error);
+    console.error(
+      "Get my profile error:",
+      error
+    );
 
     res.status(500).json({
       success: false,
@@ -285,6 +314,7 @@ const getMyProfile = async (req, res) => {
     });
   }
 };
+
 
 // =========================
 // EXPORT

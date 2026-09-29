@@ -5,10 +5,9 @@ const { pool } = require("../config/db");
 // =========================
 const createSession = async ({
   requestId,
-  teacherId,
-  learnerId,
+  hostId,
+  participantId,
   scheduledAt,
-  duration,
   meetingLink,
 }) => {
   const [result] = await pool.query(
@@ -16,27 +15,26 @@ const createSession = async ({
     INSERT INTO sessions
     (
       request_id,
-      teacher_id,
-      learner_id,
+      host_id,
+      participant_id,
       scheduled_at,
-      duration,
       meeting_link,
       status
     )
-    VALUES (?, ?, ?, ?, ?, ?, 'SCHEDULED')
+    VALUES (?, ?, ?, ?, ?, 'scheduled')
     `,
     [
       requestId,
-      teacherId,
-      learnerId,
+      hostId,
+      participantId,
       scheduledAt,
-      duration || 60,
       meetingLink || null,
     ]
   );
 
   return result.insertId;
 };
+
 
 // =========================
 // FIND SESSION BY ID
@@ -47,24 +45,24 @@ const findSessionById = async (sessionId) => {
     SELECT
       s.id,
       s.request_id,
-      s.teacher_id,
-      s.learner_id,
+      s.host_id,
+      s.participant_id,
       s.scheduled_at,
-      s.duration,
       s.meeting_link,
       s.status,
       s.created_at,
+      s.updated_at,
 
-      teacher.name AS teacher_name,
-      learner.name AS learner_name
+      host.name AS host_name,
+      participant.name AS participant_name
 
     FROM sessions s
 
-    JOIN users teacher
-      ON s.teacher_id = teacher.id
+    JOIN users host
+      ON s.host_id = host.id
 
-    JOIN users learner
-      ON s.learner_id = learner.id
+    JOIN users participant
+      ON s.participant_id = participant.id
 
     WHERE s.id = ?
     `,
@@ -73,6 +71,7 @@ const findSessionById = async (sessionId) => {
 
   return rows[0] || null;
 };
+
 
 // =========================
 // GET USER SESSIONS
@@ -83,27 +82,27 @@ const findSessionsByUserId = async (userId) => {
     SELECT
       s.id,
       s.request_id,
-      s.teacher_id,
-      s.learner_id,
+      s.host_id,
+      s.participant_id,
       s.scheduled_at,
-      s.duration,
       s.meeting_link,
       s.status,
       s.created_at,
+      s.updated_at,
 
-      teacher.name AS teacher_name,
-      learner.name AS learner_name
+      host.name AS host_name,
+      participant.name AS participant_name
 
     FROM sessions s
 
-    JOIN users teacher
-      ON s.teacher_id = teacher.id
+    JOIN users host
+      ON s.host_id = host.id
 
-    JOIN users learner
-      ON s.learner_id = learner.id
+    JOIN users participant
+      ON s.participant_id = participant.id
 
-    WHERE s.teacher_id = ?
-       OR s.learner_id = ?
+    WHERE s.host_id = ?
+       OR s.participant_id = ?
 
     ORDER BY s.scheduled_at DESC
     `,
@@ -113,14 +112,26 @@ const findSessionsByUserId = async (userId) => {
   return rows;
 };
 
+
 // =========================
 // FIND SESSION BY REQUEST
 // =========================
 const findSessionByRequestId = async (requestId) => {
   const [rows] = await pool.query(
     `
-    SELECT *
+    SELECT
+      id,
+      request_id,
+      host_id,
+      participant_id,
+      scheduled_at,
+      meeting_link,
+      status,
+      created_at,
+      updated_at
+
     FROM sessions
+
     WHERE request_id = ?
     `,
     [requestId]
@@ -129,33 +140,47 @@ const findSessionByRequestId = async (requestId) => {
   return rows[0] || null;
 };
 
+
 // =========================
 // UPDATE SESSION
 // =========================
-const updateSession = async (sessionId, updates) => {
+const updateSession = async (
+  sessionId,
+  updates
+) => {
   const fields = [];
   const values = [];
 
+  // Scheduled time
   if (updates.scheduledAt !== undefined) {
     fields.push("scheduled_at = ?");
     values.push(updates.scheduledAt);
   }
 
-  if (updates.duration !== undefined) {
-    fields.push("duration = ?");
-    values.push(updates.duration);
-  }
-
+  // Meeting link
   if (updates.meetingLink !== undefined) {
     fields.push("meeting_link = ?");
     values.push(updates.meetingLink);
   }
 
+  // Status
   if (updates.status !== undefined) {
+    const allowedStatuses = [
+      "scheduled",
+      "ongoing",
+      "completed",
+      "cancelled",
+    ];
+
+    if (!allowedStatuses.includes(updates.status)) {
+      throw new Error("Invalid session status");
+    }
+
     fields.push("status = ?");
     values.push(updates.status);
   }
 
+  // Nothing to update
   if (fields.length === 0) {
     return false;
   }
@@ -174,6 +199,7 @@ const updateSession = async (sessionId, updates) => {
   return result.affectedRows > 0;
 };
 
+
 // =========================
 // COMPLETE SESSION
 // =========================
@@ -181,7 +207,7 @@ const completeSession = async (sessionId) => {
   const [result] = await pool.query(
     `
     UPDATE sessions
-    SET status = 'COMPLETED'
+    SET status = 'completed'
     WHERE id = ?
     `,
     [sessionId]
@@ -189,6 +215,7 @@ const completeSession = async (sessionId) => {
 
   return result.affectedRows > 0;
 };
+
 
 // =========================
 // EXPORT

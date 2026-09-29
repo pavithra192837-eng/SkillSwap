@@ -32,6 +32,7 @@ const getSkills = async (req, res) => {
   }
 };
 
+
 // =========================
 // GET SKILL BY ID
 // GET /api/skills/:id
@@ -75,6 +76,7 @@ const getSkillById = async (req, res) => {
   }
 };
 
+
 // =========================
 // CREATE SKILL
 // POST /api/skills
@@ -111,10 +113,15 @@ const createSkill = async (req, res) => {
       });
     }
 
+    // Create skill
     const [result] = await pool.query(
       `
       INSERT INTO skills
-      (name, category, description)
+      (
+        name,
+        category,
+        description
+      )
       VALUES (?, ?, ?)
       `,
       [
@@ -127,6 +134,7 @@ const createSkill = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Skill created successfully",
+
       skill: {
         id: result.insertId,
         name,
@@ -134,6 +142,7 @@ const createSkill = async (req, res) => {
         description: description || null,
       },
     });
+
   } catch (error) {
     console.error("Create skill error:", error);
 
@@ -145,13 +154,13 @@ const createSkill = async (req, res) => {
   }
 };
 
+
 // =========================
 // ADD SKILL TO MY PROFILE
 // POST /api/skills/user
 // =========================
 const addUserSkill = async (req, res) => {
   try {
-    // Get user ID from JWT
     const userId = req.user.id;
 
     const {
@@ -201,7 +210,11 @@ const addUserSkill = async (req, res) => {
     // Check if skill exists
     const [skills] = await pool.query(
       `
-      SELECT id
+      SELECT
+        id,
+        name,
+        category,
+        description
       FROM skills
       WHERE id = ?
       `,
@@ -262,8 +275,20 @@ const addUserSkill = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Skill added successfully",
+
       userSkillId: result.insertId,
+
+      skill: {
+        id: skills[0].id,
+        name: skills[0].name,
+        category: skills[0].category,
+        description: skills[0].description,
+        type,
+        level: skillLevel,
+        verified: false,
+      },
     });
+
   } catch (error) {
     console.error("Add user skill error:", error);
 
@@ -275,6 +300,7 @@ const addUserSkill = async (req, res) => {
   }
 };
 
+
 // =========================
 // DELETE SKILL FROM MY PROFILE
 // DELETE /api/skills/user/:skillId
@@ -284,15 +310,35 @@ const deleteUserSkill = async (req, res) => {
     const userId = req.user.id;
     const skillId = req.params.skillId;
 
+    const { type } = req.body;
+
+    // Validate type
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: "Skill type is required",
+      });
+    }
+
+    if (!["TEACH", "LEARN"].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Skill type must be TEACH or LEARN",
+      });
+    }
+
+    // Delete only the selected type
     const [result] = await pool.query(
       `
       DELETE FROM user_skills
       WHERE user_id = ?
       AND skill_id = ?
+      AND type = ?
       `,
       [
         userId,
         skillId,
+        type,
       ]
     );
 
@@ -307,8 +353,12 @@ const deleteUserSkill = async (req, res) => {
       success: true,
       message: "Skill removed successfully",
     });
+
   } catch (error) {
-    console.error("Delete user skill error:", error);
+    console.error(
+      "Delete user skill error:",
+      error
+    );
 
     res.status(500).json({
       success: false,
@@ -318,13 +368,13 @@ const deleteUserSkill = async (req, res) => {
   }
 };
 
+
 // =========================
 // GET MY SKILLS
 // GET /api/skills/user/me
 // =========================
 const getUserSkills = async (req, res) => {
   try {
-    // Get user ID from JWT
     const userId = req.user.id;
 
     const [skills] = await pool.query(
@@ -332,21 +382,30 @@ const getUserSkills = async (req, res) => {
       SELECT
         us.id,
         us.skill_id,
+
         s.name,
         s.category,
         s.description,
+
         us.type,
         us.level,
-        us.verified
+        us.verified,
+
+        us.created_at
+
       FROM user_skills us
+
       JOIN skills s
         ON us.skill_id = s.id
+
       WHERE us.user_id = ?
+
       ORDER BY s.name ASC
       `,
       [userId]
     );
 
+    // Separate TEACH and LEARN
     const teach = skills.filter(
       (skill) => skill.type === "TEACH"
     );
@@ -361,8 +420,12 @@ const getUserSkills = async (req, res) => {
       teach,
       learn,
     });
+
   } catch (error) {
-    console.error("Get user skills error:", error);
+    console.error(
+      "Get user skills error:",
+      error
+    );
 
     res.status(500).json({
       success: false,
@@ -371,6 +434,7 @@ const getUserSkills = async (req, res) => {
     });
   }
 };
+
 
 // =========================
 // EXPORT

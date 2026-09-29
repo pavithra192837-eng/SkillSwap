@@ -20,6 +20,10 @@ const register = async (req, res) => {
     const {
       name,
       email,
+      phone,
+      college,
+      register_no,
+      department,
       password,
       bio,
       location,
@@ -27,10 +31,19 @@ const register = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!name || !email || !password) {
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !college ||
+      !register_no ||
+      !department ||
+      !password
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Name, email and password are required",
+        message:
+          "Name, email, phone, college, register number, department and password are required",
       });
     }
 
@@ -53,11 +66,26 @@ const register = async (req, res) => {
     // Insert user
     const [result] = await pool.query(
       `INSERT INTO users
-       (name, email, password, bio, location, availability)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       (
+         name,
+         email,
+         phone,
+         college,
+         register_no,
+         department,
+         password,
+         bio,
+         location,
+         availability
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         hashedPassword,
         bio || null,
         location || null,
@@ -76,6 +104,10 @@ const register = async (req, res) => {
         id: result.insertId,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio: bio || null,
         location: location || null,
         availability: availability || null,
@@ -97,6 +129,7 @@ const register = async (req, res) => {
 // =========================
 const login = async (req, res) => {
   try {
+    // LOGIN ONLY NEEDS EMAIL + PASSWORD
     const { email, password } = req.body;
 
     // Validate input
@@ -146,6 +179,10 @@ const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        college: user.college,
+        register_no: user.register_no,
+        department: user.department,
         bio: user.bio,
         profile_image: user.profile_image,
         location: user.location,
@@ -175,6 +212,10 @@ const getMe = async (req, res) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,

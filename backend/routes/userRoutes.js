@@ -11,16 +11,49 @@ const {
   getMyProfile,
 } = require("../controllers/userController");
 
+
+// =========================
 // GET ALL USERS
-router.get("/", authMiddleware, getUsers);
+// GET /api/users
+// =========================
+router.get(
+  "/",
+  authMiddleware,
+  getUsers
+);
 
+
+// =========================
 // GET MY PROFILE
-router.get("/me", authMiddleware, getMyProfile);
+// GET /api/users/me
+// =========================
+router.get(
+  "/me",
+  authMiddleware,
+  getMyProfile
+);
 
+
+// =========================
 // UPDATE MY PROFILE
-router.put("/me", authMiddleware, updateUser);
+// PUT /api/users/me
+// =========================
+router.put(
+  "/me",
+  authMiddleware,
+  updateUser
+);
 
+
+// =========================
 // GET USER BY ID
-router.get("/:id", authMiddleware, getUserById);
+// GET /api/users/:id
+// =========================
+router.get(
+  "/:id",
+  authMiddleware,
+  getUserById
+);
+
 
 module.exports = router;

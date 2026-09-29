@@ -62,7 +62,10 @@ app.get("/api/test-db", async (req, res) => {
       data: rows,
     });
   } catch (error) {
-    console.error("Database query error:", error.message);
+    console.error(
+      "Database query error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -75,27 +78,35 @@ app.get("/api/test-db", async (req, res) => {
 // =========================
 // API ROUTES
 // =========================
-app.use("/api/auth", authRoutes);
+app.use(
+  "/api/auth",
+  authRoutes
+);
 
-app.use("/api/users", userRoutes);
+app.use(
+  "/api/users",
+  userRoutes
+);
 
-app.use("/api/skills", skillRoutes);
+app.use(
+  "/api/skills",
+  skillRoutes
+);
 
-app.use("/api/matches", matchRoutes);
+app.use(
+  "/api/matches",
+  matchRoutes
+);
 
-app.use("/api/requests", requestRoutes);
+app.use(
+  "/api/requests",
+  requestRoutes
+);
 
-app.use("/api/sessions", sessionRoutes);
-
-// =========================
-// TEMPORARY PUT ROUTE TEST
-// =========================
-app.put("/api/users/test", (req, res) => {
-  res.json({
-    success: true,
-    message: "PUT users route is working",
-  });
-});
+app.use(
+  "/api/sessions",
+  sessionRoutes
+);
 
 // =========================
 // 404 HANDLER
@@ -111,7 +122,10 @@ app.use((req, res) => {
 // GLOBAL ERROR HANDLER
 // =========================
 app.use((err, req, res, next) => {
-  console.error("Server error:", err);
+  console.error(
+    "Server error:",
+    err
+  );
 
   res.status(500).json({
     success: false,
@@ -139,8 +153,13 @@ async function startServer() {
       );
     });
   } catch (error) {
-    console.error("❌ Server startup failed:");
-    console.error(error.message);
+    console.error(
+      "❌ Server startup failed:"
+    );
+
+    console.error(
+      error.message
+    );
 
     process.exit(1);
   }

@@ -1,8 +1,13 @@
 const jwt = require("jsonwebtoken");
 
+// =========================
+// AUTHENTICATION MIDDLEWARE
+// =========================
 const authMiddleware = (req, res, next) => {
   try {
-    // Get Authorization header
+    // =========================
+    // GET AUTHORIZATION HEADER
+    // =========================
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -12,13 +17,15 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // Expected format:
+    // Expected:
     // Authorization: Bearer TOKEN
+
     const parts = authHeader.split(" ");
 
     if (
       parts.length !== 2 ||
-      parts[0] !== "Bearer"
+      parts[0] !== "Bearer" ||
+      !parts[1]
     ) {
       return res.status(401).json({
         success: false,
@@ -28,13 +35,17 @@ const authMiddleware = (req, res, next) => {
 
     const token = parts[1];
 
-    // Verify token
+    // =========================
+    // VERIFY JWT
+    // =========================
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
     );
 
-    // Store user information in request
+    // =========================
+    // STORE USER IN REQUEST
+    // =========================
     req.user = {
       id: decoded.id,
     };
@@ -42,8 +53,14 @@ const authMiddleware = (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error("Authentication error:", error.message);
+    console.error(
+      "Authentication error:",
+      error.message
+    );
 
+    // =========================
+    // TOKEN EXPIRED
+    // =========================
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
@@ -51,6 +68,9 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
+    // =========================
+    // INVALID TOKEN
+    // =========================
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
@@ -58,6 +78,9 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
+    // =========================
+    // OTHER AUTH ERROR
+    // =========================
     return res.status(401).json({
       success: false,
       message: "Authentication failed",

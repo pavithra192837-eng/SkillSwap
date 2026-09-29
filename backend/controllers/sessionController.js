@@ -11,7 +11,6 @@ const createSession = async (req, res) => {
     const {
       requestId,
       scheduledAt,
-      duration,
       meetingLink,
     } = req.body;
 
@@ -22,13 +21,15 @@ const createSession = async (req, res) => {
       });
     }
 
-    // Get accepted request
+    // =========================
+    // GET ACCEPTED REQUEST
+    // =========================
     const [requests] = await pool.query(
       `
       SELECT *
       FROM exchange_requests
       WHERE id = ?
-      AND status = 'ACCEPTED'
+      AND status = 'accepted'
       `,
       [requestId]
     );
@@ -42,7 +43,9 @@ const createSession = async (req, res) => {
 
     const request = requests[0];
 
-    // Only sender or receiver can create the session
+    // =========================
+    // CHECK USER IS PART OF REQUEST
+    // =========================
     if (
       Number(request.sender_id) !== Number(userId) &&
       Number(request.receiver_id) !== Number(userId)
@@ -53,7 +56,9 @@ const createSession = async (req, res) => {
       });
     }
 
-    // Check if session already exists
+    // =========================
+    // CHECK EXISTING SESSION
+    // =========================
     const [existingSessions] = await pool.query(
       `
       SELECT id
@@ -70,33 +75,30 @@ const createSession = async (req, res) => {
       });
     }
 
-    // For MVP:
-    // sender = teacher
-    // receiver = learner
-    const teacherId = request.sender_id;
-    const learnerId = request.receiver_id;
+    // =========================
+    // CREATE SESSION
+    // =========================
+    const hostId = request.sender_id;
+    const participantId = request.receiver_id;
 
-    // Create session
     const [result] = await pool.query(
       `
       INSERT INTO sessions
       (
         request_id,
-        teacher_id,
-        learner_id,
+        host_id,
+        participant_id,
         scheduled_at,
-        duration,
-        meeting_link,
-        status
+        status,
+        meeting_link
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'SCHEDULED')
+      VALUES (?, ?, ?, ?, 'scheduled', ?)
       `,
       [
         requestId,
-        teacherId,
-        learnerId,
+        hostId,
+        participantId,
         scheduledAt,
-        duration || 60,
         meetingLink || null,
       ]
     );
@@ -108,7 +110,10 @@ const createSession = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Create session error:", error.message);
+    console.error(
+      "Create session error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -131,27 +136,26 @@ const getSessions = async (req, res) => {
       SELECT
         s.id,
         s.request_id,
-        s.teacher_id,
-        s.learner_id,
+        s.host_id,
+        s.participant_id,
         s.scheduled_at,
-        s.duration,
-        s.meeting_link,
         s.status,
+        s.meeting_link,
         s.created_at,
 
-        teacher.name AS teacher_name,
-        learner.name AS learner_name
+        host.name AS host_name,
+        participant.name AS participant_name
 
       FROM sessions s
 
-      JOIN users teacher
-        ON s.teacher_id = teacher.id
+      JOIN users host
+        ON s.host_id = host.id
 
-      JOIN users learner
-        ON s.learner_id = learner.id
+      JOIN users participant
+        ON s.participant_id = participant.id
 
-      WHERE s.teacher_id = ?
-         OR s.learner_id = ?
+      WHERE s.host_id = ?
+         OR s.participant_id = ?
 
       ORDER BY s.scheduled_at DESC
       `,
@@ -165,7 +169,10 @@ const getSessions = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get sessions error:", error.message);
+    console.error(
+      "Get sessions error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -189,29 +196,28 @@ const getSessionById = async (req, res) => {
       SELECT
         s.id,
         s.request_id,
-        s.teacher_id,
-        s.learner_id,
+        s.host_id,
+        s.participant_id,
         s.scheduled_at,
-        s.duration,
-        s.meeting_link,
         s.status,
+        s.meeting_link,
         s.created_at,
 
-        teacher.name AS teacher_name,
-        learner.name AS learner_name
+        host.name AS host_name,
+        participant.name AS participant_name
 
       FROM sessions s
 
-      JOIN users teacher
-        ON s.teacher_id = teacher.id
+      JOIN users host
+        ON s.host_id = host.id
 
-      JOIN users learner
-        ON s.learner_id = learner.id
+      JOIN users participant
+        ON s.participant_id = participant.id
 
       WHERE s.id = ?
       AND (
-        s.teacher_id = ?
-        OR s.learner_id = ?
+        s.host_id = ?
+        OR s.participant_id = ?
       )
       `,
       [sessionId, userId, userId]
@@ -230,7 +236,10 @@ const getSessionById = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get session error:", error.message);
+    console.error(
+      "Get session error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -251,20 +260,21 @@ const updateSession = async (req, res) => {
 
     const {
       scheduledAt,
-      duration,
       meetingLink,
       status,
     } = req.body;
 
-    // Check session ownership
+    // =========================
+    // CHECK SESSION OWNERSHIP
+    // =========================
     const [sessions] = await pool.query(
       `
       SELECT *
       FROM sessions
       WHERE id = ?
       AND (
-        teacher_id = ?
-        OR learner_id = ?
+        host_id = ?
+        OR participant_id = ?
       )
       `,
       [sessionId, userId, userId]
@@ -277,18 +287,15 @@ const updateSession = async (req, res) => {
       });
     }
 
-    // Build dynamic update
+    // =========================
+    // BUILD UPDATE
+    // =========================
     const updates = [];
     const values = [];
 
     if (scheduledAt !== undefined) {
       updates.push("scheduled_at = ?");
       values.push(scheduledAt);
-    }
-
-    if (duration !== undefined) {
-      updates.push("duration = ?");
-      values.push(duration);
     }
 
     if (meetingLink !== undefined) {
@@ -298,10 +305,10 @@ const updateSession = async (req, res) => {
 
     if (status !== undefined) {
       const allowedStatuses = [
-        "SCHEDULED",
-        "ONGOING",
-        "COMPLETED",
-        "CANCELLED",
+        "scheduled",
+        "ongoing",
+        "completed",
+        "cancelled",
       ];
 
       if (!allowedStatuses.includes(status)) {
@@ -339,7 +346,10 @@ const updateSession = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Update session error:", error.message);
+    console.error(
+      "Update session error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -358,15 +368,17 @@ const completeSession = async (req, res) => {
     const userId = req.user.id;
     const sessionId = req.params.id;
 
-    // Verify user belongs to session
+    // =========================
+    // VERIFY USER BELONGS TO SESSION
+    // =========================
     const [sessions] = await pool.query(
       `
       SELECT *
       FROM sessions
       WHERE id = ?
       AND (
-        teacher_id = ?
-        OR learner_id = ?
+        host_id = ?
+        OR participant_id = ?
       )
       `,
       [sessionId, userId, userId]
@@ -381,63 +393,42 @@ const completeSession = async (req, res) => {
 
     const session = sessions[0];
 
-    if (session.status === "COMPLETED") {
+    if (session.status === "completed") {
       return res.status(400).json({
         success: false,
         message: "Session is already completed",
       });
     }
 
-    if (session.status === "CANCELLED") {
+    if (session.status === "cancelled") {
       return res.status(400).json({
         success: false,
         message: "Cancelled sessions cannot be completed",
       });
     }
 
-    // Mark session as completed
+    // =========================
+    // MARK SESSION COMPLETED
+    // =========================
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'COMPLETED'
+      SET status = 'completed'
       WHERE id = ?
       `,
       [sessionId]
     );
 
-    // Update reputation / completed session count
-    await pool.query(
-      `
-      INSERT INTO reputation
-      (user_id, points, rating, completed_sessions)
-      VALUES (?, 10, 0, 1)
-      ON DUPLICATE KEY UPDATE
-        points = points + 10,
-        completed_sessions = completed_sessions + 1
-      `,
-      [session.teacher_id]
-    );
-
-    await pool.query(
-      `
-      INSERT INTO reputation
-      (user_id, points, rating, completed_sessions)
-      VALUES (?, 10, 0, 1)
-      ON DUPLICATE KEY UPDATE
-        points = points + 10,
-        completed_sessions = completed_sessions + 1
-      `,
-      [session.learner_id]
-    );
-
     res.status(200).json({
       success: true,
       message: "Session completed successfully",
-      pointsAwarded: 10,
     });
 
   } catch (error) {
-    console.error("Complete session error:", error.message);
+    console.error(
+      "Complete session error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,

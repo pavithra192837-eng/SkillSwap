@@ -1,7 +1,7 @@
 const { pool } = require("../config/db");
 
 // =========================
-// GET ALL SKILLS
+// FIND ALL SKILLS
 // =========================
 const findAllSkills = async () => {
   const [rows] = await pool.query(
@@ -10,7 +10,8 @@ const findAllSkills = async () => {
       id,
       name,
       category,
-      description
+      description,
+      created_at
     FROM skills
     ORDER BY name ASC
     `
@@ -18,6 +19,7 @@ const findAllSkills = async () => {
 
   return rows;
 };
+
 
 // =========================
 // FIND SKILL BY ID
@@ -29,7 +31,8 @@ const findSkillById = async (skillId) => {
       id,
       name,
       category,
-      description
+      description,
+      created_at
     FROM skills
     WHERE id = ?
     `,
@@ -38,6 +41,7 @@ const findSkillById = async (skillId) => {
 
   return rows[0] || null;
 };
+
 
 // =========================
 // FIND SKILL BY NAME
@@ -49,7 +53,8 @@ const findSkillByName = async (name) => {
       id,
       name,
       category,
-      description
+      description,
+      created_at
     FROM skills
     WHERE LOWER(name) = LOWER(?)
     `,
@@ -59,10 +64,15 @@ const findSkillByName = async (name) => {
   return rows[0] || null;
 };
 
+
 // =========================
 // CREATE SKILL
 // =========================
-const createSkill = async ({ name, category, description }) => {
+const createSkill = async ({
+  name,
+  category,
+  description,
+}) => {
   const [result] = await pool.query(
     `
     INSERT INTO skills
@@ -83,6 +93,7 @@ const createSkill = async ({ name, category, description }) => {
   return result.insertId;
 };
 
+
 // =========================
 // ADD USER SKILL
 // =========================
@@ -92,6 +103,8 @@ const addUserSkill = async ({
   type,
   level,
 }) => {
+  const skillLevel = level || "BEGINNER";
+
   const [result] = await pool.query(
     `
     INSERT INTO user_skills
@@ -99,20 +112,22 @@ const addUserSkill = async ({
       user_id,
       skill_id,
       type,
-      level
+      level,
+      verified
     )
-    VALUES (?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, FALSE)
     `,
     [
       userId,
       skillId,
       type,
-      level || "BEGINNER",
+      skillLevel,
     ]
   );
 
   return result.insertId;
 };
+
 
 // =========================
 // FIND USER SKILLS
@@ -124,13 +139,15 @@ const findUserSkills = async (userId) => {
       us.id,
       us.user_id,
       us.skill_id,
-      us.type,
-      us.level,
-      us.verified,
 
       s.name,
       s.category,
-      s.description
+      s.description,
+
+      us.type,
+      us.level,
+      us.verified,
+      us.created_at
 
     FROM user_skills us
 
@@ -147,23 +164,30 @@ const findUserSkills = async (userId) => {
   return rows;
 };
 
+
 // =========================
 // FIND USER SKILL
 // =========================
-const findUserSkill = async (userId, skillId, type) => {
+const findUserSkill = async (
+  userId,
+  skillId,
+  type
+) => {
   const [rows] = await pool.query(
     `
     SELECT
       us.id,
       us.user_id,
       us.skill_id,
-      us.type,
-      us.level,
-      us.verified,
 
       s.name,
       s.category,
-      s.description
+      s.description,
+
+      us.type,
+      us.level,
+      us.verified,
+      us.created_at
 
     FROM user_skills us
 
@@ -174,16 +198,25 @@ const findUserSkill = async (userId, skillId, type) => {
       AND us.skill_id = ?
       AND us.type = ?
     `,
-    [userId, skillId, type]
+    [
+      userId,
+      skillId,
+      type,
+    ]
   );
 
   return rows[0] || null;
 };
 
+
 // =========================
 // DELETE USER SKILL
 // =========================
-const deleteUserSkill = async (userId, skillId, type) => {
+const deleteUserSkill = async (
+  userId,
+  skillId,
+  type
+) => {
   const [result] = await pool.query(
     `
     DELETE FROM user_skills
@@ -191,16 +224,26 @@ const deleteUserSkill = async (userId, skillId, type) => {
       AND skill_id = ?
       AND type = ?
     `,
-    [userId, skillId, type]
+    [
+      userId,
+      skillId,
+      type,
+    ]
   );
 
   return result.affectedRows > 0;
 };
 
+
 // =========================
 // UPDATE USER SKILL
 // =========================
-const updateUserSkill = async (userId, skillId, type, level) => {
+const updateUserSkill = async (
+  userId,
+  skillId,
+  type,
+  level
+) => {
   const [result] = await pool.query(
     `
     UPDATE user_skills
@@ -219,6 +262,7 @@ const updateUserSkill = async (userId, skillId, type, level) => {
 
   return result.affectedRows > 0;
 };
+
 
 // =========================
 // EXPORT

@@ -11,11 +11,16 @@ const findUserById = async (userId) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,
         availability,
-        created_at
+        created_at,
+        updated_at
       FROM users
       WHERE id = ?
       `,
@@ -23,11 +28,17 @@ const findUserById = async (userId) => {
     );
 
     return rows[0] || null;
+
   } catch (error) {
-    console.error("Find user by ID error:", error);
+    console.error(
+      "Find user by ID error:",
+      error
+    );
+
     throw error;
   }
 };
+
 
 // =========================
 // FIND USER BY EMAIL
@@ -40,12 +51,17 @@ const findUserByEmail = async (email) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         password,
         bio,
         profile_image,
         location,
         availability,
-        created_at
+        created_at,
+        updated_at
       FROM users
       WHERE email = ?
       `,
@@ -53,11 +69,17 @@ const findUserByEmail = async (email) => {
     );
 
     return rows[0] || null;
+
   } catch (error) {
-    console.error("Find user by email error:", error);
+    console.error(
+      "Find user by email error:",
+      error
+    );
+
     throw error;
   }
 };
+
 
 // =========================
 // CREATE USER
@@ -65,6 +87,10 @@ const findUserByEmail = async (email) => {
 const createUser = async ({
   name,
   email,
+  phone,
+  college,
+  registerNo,
+  department,
   password,
   bio,
   profileImage,
@@ -78,17 +104,25 @@ const createUser = async ({
       (
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         password,
         bio,
         profile_image,
         location,
         availability
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         name,
         email,
+        phone,
+        college,
+        registerNo,
+        department,
         password,
         bio || null,
         profileImage || null,
@@ -98,40 +132,78 @@ const createUser = async ({
     );
 
     return result.insertId;
+
   } catch (error) {
-    console.error("Create user error:", error);
+    console.error(
+      "Create user error:",
+      error
+    );
+
     throw error;
   }
 };
 
+
 // =========================
 // UPDATE USER
 // =========================
-const updateUser = async (userId, updates) => {
+const updateUser = async (
+  userId,
+  updates
+) => {
   try {
     const fields = [];
     const values = [];
 
+    // Name
     if (updates.name !== undefined) {
       fields.push("name = ?");
       values.push(updates.name);
     }
 
+    // Phone
+    if (updates.phone !== undefined) {
+      fields.push("phone = ?");
+      values.push(updates.phone);
+    }
+
+    // College
+    if (updates.college !== undefined) {
+      fields.push("college = ?");
+      values.push(updates.college);
+    }
+
+    // Register number
+    if (updates.registerNo !== undefined) {
+      fields.push("register_no = ?");
+      values.push(updates.registerNo);
+    }
+
+    // Department
+    if (updates.department !== undefined) {
+      fields.push("department = ?");
+      values.push(updates.department);
+    }
+
+    // Bio
     if (updates.bio !== undefined) {
       fields.push("bio = ?");
       values.push(updates.bio);
     }
 
+    // Profile image
     if (updates.profileImage !== undefined) {
       fields.push("profile_image = ?");
       values.push(updates.profileImage);
     }
 
+    // Location
     if (updates.location !== undefined) {
       fields.push("location = ?");
       values.push(updates.location);
     }
 
+    // Availability
     if (updates.availability !== undefined) {
       fields.push("availability = ?");
       values.push(updates.availability);
@@ -153,16 +225,24 @@ const updateUser = async (userId, updates) => {
     );
 
     return result.affectedRows > 0;
+
   } catch (error) {
-    console.error("Update user error:", error);
+    console.error(
+      "Update user error:",
+      error
+    );
+
     throw error;
   }
 };
 
+
 // =========================
 // GET ALL USERS
 // =========================
-const findAllUsers = async (currentUserId) => {
+const findAllUsers = async (
+  currentUserId
+) => {
   try {
     const [rows] = await pool.query(
       `
@@ -170,11 +250,16 @@ const findAllUsers = async (currentUserId) => {
         id,
         name,
         email,
+        phone,
+        college,
+        register_no,
+        department,
         bio,
         profile_image,
         location,
         availability,
-        created_at
+        created_at,
+        updated_at
       FROM users
       WHERE id != ?
       ORDER BY created_at DESC
@@ -183,11 +268,17 @@ const findAllUsers = async (currentUserId) => {
     );
 
     return rows;
+
   } catch (error) {
-    console.error("Find all users error:", error);
+    console.error(
+      "Find all users error:",
+      error
+    );
+
     throw error;
   }
 };
+
 
 // =========================
 // DELETE USER
@@ -203,11 +294,17 @@ const deleteUser = async (userId) => {
     );
 
     return result.affectedRows > 0;
+
   } catch (error) {
-    console.error("Delete user error:", error);
+    console.error(
+      "Delete user error:",
+      error
+    );
+
     throw error;
   }
 };
+
 
 // =========================
 // EXPORT

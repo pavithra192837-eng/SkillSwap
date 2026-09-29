@@ -13,11 +13,16 @@ const {
   getUserSkills,
 } = require("../controllers/skillController");
 
+
 // =========================
 // GET ALL SKILLS
 // GET /api/skills
 // =========================
-router.get("/", getSkills);
+router.get(
+  "/",
+  getSkills
+);
+
 
 // =========================
 // CREATE NEW SKILL
@@ -29,6 +34,7 @@ router.post(
   createSkill
 );
 
+
 // =========================
 // ADD SKILL TO MY PROFILE
 // POST /api/skills/user
@@ -38,6 +44,7 @@ router.post(
   authMiddleware,
   addUserSkill
 );
+
 
 // =========================
 // GET MY SKILLS
@@ -49,6 +56,7 @@ router.get(
   getUserSkills
 );
 
+
 // =========================
 // DELETE SKILL FROM MY PROFILE
 // DELETE /api/skills/user/:skillId
@@ -59,6 +67,7 @@ router.delete(
   deleteUserSkill
 );
 
+
 // =========================
 // GET SKILL BY ID
 // GET /api/skills/:id
@@ -67,5 +76,6 @@ router.get(
   "/:id",
   getSkillById
 );
+
 
 module.exports = router;

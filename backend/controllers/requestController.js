@@ -7,15 +7,28 @@ const { pool } = require("../config/db");
 const sendRequest = async (req, res) => {
   try {
     const senderId = req.user.id;
-    const { receiverId, message } = req.body;
 
-    if (!receiverId) {
+    const {
+      receiverId,
+      senderSkillId,
+      receiverSkillId,
+      message,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !receiverId ||
+      !senderSkillId ||
+      !receiverSkillId
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Receiver ID is required",
+        message:
+          "Receiver ID, sender skill ID and receiver skill ID are required",
       });
     }
 
+    // Cannot send request to yourself
     if (Number(receiverId) === Number(senderId)) {
       return res.status(400).json({
         success: false,
@@ -23,9 +36,15 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Check receiver exists
+    // =========================
+    // CHECK RECEIVER
+    // =========================
     const [users] = await pool.query(
-      "SELECT id FROM users WHERE id = ?",
+      `
+      SELECT id
+      FROM users
+      WHERE id = ?
+      `,
       [receiverId]
     );
 
@@ -36,14 +55,60 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Check for an existing pending request
+    // =========================
+    // CHECK SENDER SKILL
+    // Sender must actually TEACH this skill
+    // =========================
+    const [senderSkills] = await pool.query(
+      `
+      SELECT id, skill_id
+      FROM user_skills
+      WHERE id = ?
+      AND user_id = ?
+      AND type = 'TEACH'
+      `,
+      [senderSkillId, senderId]
+    );
+
+    if (senderSkills.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid sender skill",
+      });
+    }
+
+    // =========================
+    // CHECK RECEIVER SKILL
+    // Receiver must actually TEACH this skill
+    // =========================
+    const [receiverSkills] = await pool.query(
+      `
+      SELECT id, skill_id
+      FROM user_skills
+      WHERE id = ?
+      AND user_id = ?
+      AND type = 'TEACH'
+      `,
+      [receiverSkillId, receiverId]
+    );
+
+    if (receiverSkills.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid receiver skill",
+      });
+    }
+
+    // =========================
+    // CHECK FOR EXISTING PENDING REQUEST
+    // =========================
     const [existingRequests] = await pool.query(
       `
       SELECT id
       FROM exchange_requests
       WHERE sender_id = ?
       AND receiver_id = ?
-      AND status = 'PENDING'
+      AND status = 'pending'
       `,
       [senderId, receiverId]
     );
@@ -55,14 +120,29 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Create request
+    // =========================
+    // CREATE REQUEST
+    // =========================
     const [result] = await pool.query(
       `
       INSERT INTO exchange_requests
-      (sender_id, receiver_id, message, status)
-      VALUES (?, ?, ?, 'PENDING')
+      (
+        sender_id,
+        receiver_id,
+        sender_skill_id,
+        receiver_skill_id,
+        message,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, 'pending')
       `,
-      [senderId, receiverId, message || null]
+      [
+        senderId,
+        receiverId,
+        senderSkillId,
+        receiverSkillId,
+        message || null,
+      ]
     );
 
     res.status(201).json({
@@ -96,6 +176,10 @@ const getReceivedRequests = async (req, res) => {
         er.id,
         er.sender_id,
         er.receiver_id,
+
+        er.sender_skill_id,
+        er.receiver_skill_id,
+
         er.message,
         er.status,
         er.created_at,
@@ -103,12 +187,21 @@ const getReceivedRequests = async (req, res) => {
         u.name AS sender_name,
         u.email AS sender_email,
         u.bio AS sender_bio,
-        u.profile_image AS sender_profile_image
+        u.profile_image AS sender_profile_image,
+
+        sender_skill.name AS sender_skill_name,
+        receiver_skill.name AS receiver_skill_name
 
       FROM exchange_requests er
 
       JOIN users u
         ON er.sender_id = u.id
+
+      JOIN skills sender_skill
+        ON er.sender_skill_id = sender_skill.id
+
+      JOIN skills receiver_skill
+        ON er.receiver_skill_id = receiver_skill.id
 
       WHERE er.receiver_id = ?
 
@@ -124,7 +217,10 @@ const getReceivedRequests = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get received requests error:", error.message);
+    console.error(
+      "Get received requests error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -148,6 +244,10 @@ const getSentRequests = async (req, res) => {
         er.id,
         er.sender_id,
         er.receiver_id,
+
+        er.sender_skill_id,
+        er.receiver_skill_id,
+
         er.message,
         er.status,
         er.created_at,
@@ -155,12 +255,21 @@ const getSentRequests = async (req, res) => {
         u.name AS receiver_name,
         u.email AS receiver_email,
         u.bio AS receiver_bio,
-        u.profile_image AS receiver_profile_image
+        u.profile_image AS receiver_profile_image,
+
+        sender_skill.name AS sender_skill_name,
+        receiver_skill.name AS receiver_skill_name
 
       FROM exchange_requests er
 
       JOIN users u
         ON er.receiver_id = u.id
+
+      JOIN skills sender_skill
+        ON er.sender_skill_id = sender_skill.id
+
+      JOIN skills receiver_skill
+        ON er.receiver_skill_id = receiver_skill.id
 
       WHERE er.sender_id = ?
 
@@ -176,7 +285,10 @@ const getSentRequests = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get sent requests error:", error.message);
+    console.error(
+      "Get sent requests error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -195,7 +307,7 @@ const acceptRequest = async (req, res) => {
     const userId = req.user.id;
     const requestId = req.params.id;
 
-    // Find request
+    // Find request belonging to current receiver
     const [requests] = await pool.query(
       `
       SELECT *
@@ -215,10 +327,12 @@ const acceptRequest = async (req, res) => {
 
     const request = requests[0];
 
-    if (request.status !== "PENDING") {
+    // Check status
+    if (request.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: `Request has already been ${request.status.toLowerCase()}`,
+        message:
+          `Request has already been ${request.status}`,
       });
     }
 
@@ -226,7 +340,7 @@ const acceptRequest = async (req, res) => {
     await pool.query(
       `
       UPDATE exchange_requests
-      SET status = 'ACCEPTED'
+      SET status = 'accepted'
       WHERE id = ?
       `,
       [requestId]
@@ -238,7 +352,10 @@ const acceptRequest = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Accept request error:", error.message);
+    console.error(
+      "Accept request error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -277,10 +394,12 @@ const rejectRequest = async (req, res) => {
 
     const request = requests[0];
 
-    if (request.status !== "PENDING") {
+    // Check status
+    if (request.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: `Request has already been ${request.status.toLowerCase()}`,
+        message:
+          `Request has already been ${request.status}`,
       });
     }
 
@@ -288,7 +407,7 @@ const rejectRequest = async (req, res) => {
     await pool.query(
       `
       UPDATE exchange_requests
-      SET status = 'REJECTED'
+      SET status = 'rejected'
       WHERE id = ?
       `,
       [requestId]
@@ -300,7 +419,10 @@ const rejectRequest = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Reject request error:", error.message);
+    console.error(
+      "Reject request error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
