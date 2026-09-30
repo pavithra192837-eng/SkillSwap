@@ -1,111 +1,131 @@
 import { Link } from "react-router-dom";
-import "./Auth.css";
+import "./Login.css";
 
 function Login() {
   return (
-    <div className="auth-page">
+    <main className="login-page">
 
-      <div className="auth-card">
+      <div className="login-container">
 
         {/* Left Side */}
-        <div className="auth-info">
+        <section className="login-info">
 
-          <div className="auth-logo">
-            <span>S</span>
-            SkillSwap
+          <Link to="/" className="login-logo">
+            Skill<span>Swap</span>
+          </Link>
+
+          <div className="login-info-content">
+
+            <p className="login-label">
+              WELCOME BACK
+            </p>
+
+            <h1>
+              Continue your
+              <span> skill journey.</span>
+            </h1>
+
+            <p>
+              Connect with learners, share your knowledge,
+              and continue growing with the SkillSwap community.
+            </p>
+
           </div>
 
-          <h1>
-            Welcome
-            <span> Back!</span>
-          </h1>
-
-          <p>
-            Continue your skill-sharing journey.
-            Find people to learn from and share what you know.
-          </p>
-
-          <div className="auth-highlight">
-            <span>🤝</span>
-            <div>
-              <strong>Learn. Teach. Exchange.</strong>
-              <small>Connect with the right skill partner.</small>
-            </div>
-          </div>
-
-        </div>
+        </section>
 
 
         {/* Right Side */}
-        <div className="auth-form">
+        <section className="login-card">
 
-          <h2>Sign in</h2>
+          <div className="login-heading">
 
-          <p className="form-subtitle">
-            Enter your details to continue
-          </p>
+            <h2>
+              Welcome back
+            </h2>
 
-          <form>
+            <p>
+              Login to your SkillSwap account
+            </p>
 
-            <div className="input-group">
-              <label>Email Address</label>
+          </div>
+
+
+          <form className="login-form">
+
+            {/* Email */}
+
+            <div className="form-group">
+
+              <label htmlFor="email">
+                Email
+              </label>
 
               <input
+                id="email"
                 type="email"
                 placeholder="Enter your email"
               />
+
             </div>
 
 
-            <div className="input-group">
-              <label>Password</label>
+            {/* Password */}
+
+            <div className="form-group">
+
+              <div className="password-label">
+
+                <label htmlFor="password">
+                  Password
+                </label>
+
+                <Link to="/forgot-password">
+                  Forgot password?
+                </Link>
+
+              </div>
 
               <input
+                id="password"
                 type="password"
                 placeholder="Enter your password"
               />
-            </div>
-
-
-            <div className="form-options">
-
-              <label className="remember">
-                <input type="checkbox" />
-                Remember me
-              </label>
-
-              <a href="#" className="forgot">
-                Forgot password?
-              </a>
 
             </div>
 
 
-            <button type="submit" className="auth-button">
-              Sign In →
+            {/* Login Button */}
+
+            <button
+              type="submit"
+              className="login-submit"
+            >
+              Login
             </button>
 
           </form>
 
 
-          <div className="auth-divider">
-            <span>or</span>
-          </div>
+          {/* Sign Up */}
 
+          <div className="login-register">
 
-          <p className="switch-auth">
-            Don't have an account?
+            <span>
+              Don't have an account?
+            </span>
 
             <Link to="/register">
               Sign Up
             </Link>
-          </p>
 
-        </div>
+          </div>
+
+        </section>
 
       </div>
 
-    </div>
+    </main>
   );
 }
 
