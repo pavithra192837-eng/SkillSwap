@@ -1,168 +1,272 @@
+/* =========================================================
+   SKILLSWAP - NOTIFICATIONS
+   Premium Dark UI
+========================================================= */
+
 .notifications-page {
   min-height: 100vh;
-  background: #f6f8fc;
-  color: #182033;
+  background:
+    radial-gradient(
+      circle at 10% 10%,
+      rgba(59, 130, 246, 0.12),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 90% 20%,
+      rgba(99, 102, 241, 0.10),
+      transparent 30%
+    ),
+    #07111f;
+
+  color: #f8fafc;
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* =========================================
+/* =========================================================
    TOP BAR
-========================================= */
+========================================================= */
 
 .notifications-topbar {
-  height: 78px;
+  min-height: 78px;
   padding: 0 34px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e9f1;
+
+  background: rgba(8, 20, 35, 0.85);
+
+  border-bottom: 1px solid rgba(96, 165, 250, 0.12);
 
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  backdrop-filter: blur(18px);
 }
 
 .notifications-title-area {
   flex: 1;
+
   display: flex;
   align-items: center;
+
   gap: 13px;
   margin-left: 15px;
 }
 
 .notifications-title-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 11px;
-  background: #eef2ff;
-  color: #3155d9;
+  width: 44px;
+  height: 44px;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(37, 99, 235, 0.2),
+      rgba(99, 102, 241, 0.2)
+    );
+
+  border: 1px solid rgba(96, 165, 250, 0.2);
+
+  color: #60a5fa;
 
   display: flex;
   align-items: center;
   justify-content: center;
+
+  box-shadow:
+    0 8px 25px rgba(37, 99, 235, 0.12);
 }
 
 .notifications-title-area h1 {
   margin: 0;
+
+  color: #f8fafc;
+
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .notifications-title-area p {
   margin: 4px 0 0;
-  color: #7b8495;
+
+  color: #64748b;
+
   font-size: 11px;
 }
+
+/* =========================================================
+   BACK BUTTON
+========================================================= */
 
 .notifications-back {
   width: 38px;
   height: 38px;
 
-  border: 1px solid #e0e5ee;
-  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
 
-  background: #ffffff;
-  color: #596377;
+  border-radius: 10px;
+
+  background: rgba(15, 28, 48, 0.75);
+
+  color: #94a3b8;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
   cursor: pointer;
+
+  transition: 0.2s ease;
 }
 
 .notifications-back:hover {
-  background: #f3f5f9;
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #60a5fa;
 }
+
+/* =========================================================
+   MARK ALL
+========================================================= */
 
 .mark-all-button {
   height: 39px;
-  padding: 0 14px;
 
-  border: 1px solid #dce2ed;
-  border-radius: 8px;
+  padding: 0 15px;
 
-  background: #ffffff;
-  color: #4d5870;
+  border: 1px solid rgba(96, 165, 250, 0.15);
+
+  border-radius: 10px;
+
+  background: rgba(15, 28, 48, 0.8);
+
+  color: #cbd5e1;
 
   display: flex;
   align-items: center;
+
   gap: 7px;
 
   font-size: 11px;
+  font-weight: 600;
+
   cursor: pointer;
+
+  transition: 0.2s ease;
 }
 
 .mark-all-button:hover {
-  background: #f4f6fa;
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #ffffff;
 }
 
-/* =========================================
+/* =========================================================
    CONTENT
-========================================= */
+========================================================= */
 
 .notifications-container {
   width: min(900px, calc(100% - 40px));
-  margin: 30px auto;
+
+  margin: 32px auto;
 }
 
-/* =========================================
+/* =========================================================
    SUMMARY
-========================================= */
+========================================================= */
 
 .notifications-summary {
   display: flex;
+
   gap: 15px;
-  margin-bottom: 18px;
+
+  margin-bottom: 20px;
 }
 
 .notifications-summary > div {
+  flex: 1;
+
   min-width: 145px;
 
-  padding: 15px 18px;
+  padding: 17px 19px;
 
-  background: #ffffff;
-  border: 1px solid #e4e8f0;
-  border-radius: 10px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18, 35, 60, 0.92),
+      rgba(9, 21, 37, 0.95)
+    );
+
+  border: 1px solid rgba(96, 165, 250, 0.13);
+
+  border-radius: 14px;
 
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  box-shadow:
+    0 12px 35px rgba(0, 0, 0, 0.2);
 }
 
 .notifications-summary span {
-  color: #8992a4;
+  color: #64748b;
+
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
 }
 
 .notifications-summary strong {
-  font-size: 18px;
-  color: #26324a;
+  color: #60a5fa;
+
+  font-size: 21px;
+  font-weight: 800;
 }
 
-/* =========================================
+/* =========================================================
    NOTIFICATION LIST
-========================================= */
+========================================================= */
 
 .notifications-list {
-  background: #ffffff;
-  border: 1px solid #e4e8f0;
-  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18, 35, 60, 0.94),
+      rgba(9, 21, 37, 0.96)
+    );
+
+  border: 1px solid rgba(96, 165, 250, 0.13);
+
+  border-radius: 18px;
+
   overflow: hidden;
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.25);
 }
+
+/* =========================================================
+   NOTIFICATION ITEM
+========================================================= */
 
 .notification-item {
   min-height: 95px;
-  padding: 17px 20px;
+
+  padding: 18px 20px;
 
   display: flex;
   align-items: center;
+
   gap: 15px;
 
-  border-bottom: 1px solid #edf0f5;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
 
   cursor: pointer;
-  transition: background 0.15s ease;
+
+  transition:
+    background 0.2s ease,
+    padding-left 0.2s ease;
 }
 
 .notification-item:last-child {
@@ -170,152 +274,177 @@
 }
 
 .notification-item:hover {
-  background: #fafbfe;
+  background: rgba(37, 99, 235, 0.06);
+  padding-left: 24px;
 }
 
-/* UNREAD */
+/* =========================================================
+   UNREAD
+========================================================= */
 
 .notification-unread {
-  background: #f8faff;
+  background: rgba(37, 99, 235, 0.06);
 }
 
 .notification-unread:hover {
-  background: #f2f6ff;
+  background: rgba(37, 99, 235, 0.1);
 }
 
-/* =========================================
+/* =========================================================
    NOTIFICATION ICON
-========================================= */
+========================================================= */
 
 .notification-icon {
-  width: 43px;
-  height: 43px;
+  width: 45px;
+  height: 45px;
+
   flex-shrink: 0;
 
-  border-radius: 10px;
+  border-radius: 12px;
 
   display: flex;
   align-items: center;
   justify-content: center;
+
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .notification-match {
-  background: #edf3ff;
-  color: #3155d9;
+  background: rgba(37, 99, 235, 0.14);
+  color: #60a5fa;
 }
 
 .notification-request {
-  background: #eef9f3;
-  color: #238553;
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
 }
 
 .notification-message {
-  background: #f1edff;
-  color: #6948c9;
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
 }
 
 .notification-session {
-  background: #fff5e8;
-  color: #c47a1d;
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
 }
 
 .notification-accepted {
-  background: #eaf9f1;
-  color: #16834e;
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
 }
 
 .notification-completed {
-  background: #fff7dc;
-  color: #b98516;
+  background: rgba(234, 179, 8, 0.1);
+  color: #facc15;
 }
 
 .notification-call {
-  background: #eaf5ff;
-  color: #2675bb;
+  background: rgba(14, 165, 233, 0.1);
+  color: #38bdf8;
 }
 
-/* =========================================
+/* =========================================================
    CONTENT
-========================================= */
+========================================================= */
 
 .notification-content {
   flex: 1;
+
   min-width: 0;
 }
 
 .notification-heading {
   display: flex;
   align-items: center;
+
   gap: 8px;
 }
 
 .notification-heading h3 {
   margin: 0;
-  color: #202a3d;
+
+  color: #e2e8f0;
+
   font-size: 13px;
   font-weight: 700;
 }
 
 .notification-content p {
-  margin: 5px 0 5px;
+  margin: 5px 0;
 
-  color: #697388;
+  color: #94a3b8;
+
   font-size: 11px;
 
   line-height: 1.5;
 }
 
 .notification-time {
-  color: #9ba3b2;
+  color: #64748b;
+
   font-size: 9px;
 }
 
-/* =========================================
+/* =========================================================
    UNREAD DOT
-========================================= */
+========================================================= */
 
 .unread-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 
   border-radius: 50%;
-  background: #3155d9;
+
+  background: #3b82f6;
 
   flex-shrink: 0;
+
+  box-shadow:
+    0 0 10px rgba(59, 130, 246, 0.6);
 }
 
-/* =========================================
+/* =========================================================
    MORE BUTTON
-========================================= */
+========================================================= */
 
 .notification-more {
   width: 28px;
-  
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #64748b;
 }
 
 .notification-more:hover {
- display:none;
+  color: #60a5fa;
 }
 
-/* =========================================
+/* =========================================================
    EMPTY STATE
-========================================= */
+========================================================= */
 
 .empty-notifications {
   padding: 75px 20px;
+
   text-align: center;
 }
 
 .empty-icon {
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
 
-  margin: 0 auto 15px;
+  margin: 0 auto 16px;
 
   border-radius: 50%;
 
-  background: #eef2f8;
-  color: #8791a3;
+  background: rgba(37, 99, 235, 0.1);
+
+  border: 1px solid rgba(96, 165, 250, 0.15);
+
+  color: #60a5fa;
 
   display: flex;
   align-items: center;
@@ -325,25 +454,27 @@
 .empty-notifications h2 {
   margin: 0;
 
-  font-size: 16px;
+  color: #f8fafc;
+
+  font-size: 17px;
 }
 
 .empty-notifications p {
   margin-top: 8px;
 
-  color: #8992a2;
+  color: #64748b;
+
   font-size: 11px;
 }
 
-/* =========================================
-   RESPONSIVE
-========================================= */
+/* =========================================================
+   TABLET
+========================================================= */
 
 @media (max-width: 700px) {
-
   .notifications-topbar {
-    height: auto;
-    min-height: 75px;
+    min-height: 72px;
+
     padding: 12px 15px;
   }
 
@@ -361,21 +492,18 @@
 
   .mark-all-button {
     width: 39px;
+
     padding: 0;
+
     justify-content: center;
-  }
 
-  .mark-all-button svg {
-    margin: 0;
-  }
-
-  .mark-all-button {
     font-size: 0;
   }
 
   .notifications-container {
     width: calc(100% - 24px);
-    margin: 18px auto;
+
+    margin: 20px auto;
   }
 
   .notifications-summary {
@@ -383,35 +511,39 @@
   }
 
   .notifications-summary > div {
-    flex: 1;
     min-width: 0;
-    padding: 12px;
+
+    padding: 13px;
   }
 
   .notification-item {
-    padding: 15px 12px;
-    gap: 10px;
+    padding: 16px 13px;
+
+    gap: 11px;
+  }
+
+  .notification-item:hover {
+    padding-left: 13px;
   }
 
   .notification-icon {
-    width: 39px;
-    height: 39px;
+    width: 40px;
+    height: 40px;
   }
 
   .notification-content p {
     font-size: 10px;
   }
-
-  .notification-more {
-    width: 28px;
-  }
 }
 
-@media (max-width: 430px) {
+/* =========================================================
+   MOBILE
+========================================================= */
 
+@media (max-width: 430px) {
   .notifications-title-icon {
-    width: 36px;
-    height: 36px;
+    width: 37px;
+    height: 37px;
   }
 
   .notifications-title-area h1 {
@@ -424,5 +556,9 @@
 
   .notification-more {
     display: none;
+  }
+
+  .notifications-summary strong {
+    font-size: 18px;
   }
 }

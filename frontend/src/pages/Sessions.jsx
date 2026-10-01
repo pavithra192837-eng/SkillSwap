@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Session.css";
 
 const initialSessions = [
@@ -49,6 +50,7 @@ const initialSessions = [
 ];
 
 function Sessions() {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState(initialSessions);
   const [activeTab, setActiveTab] = useState("upcoming");
 
@@ -81,6 +83,12 @@ function Sessions() {
 
   return (
     <div className="sessions-page">
+      <button
+  className="sessions-back-button"
+  onClick={() => navigate("/dashboard")}
+>
+  ← Back to Dashboard
+</button>
       {/* Header */}
       <div className="sessions-header">
         <div>

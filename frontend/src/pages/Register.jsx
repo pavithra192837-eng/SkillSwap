@@ -209,8 +209,7 @@ function Register() {
       For now, successful validation
       redirects the user to Login.
     */
-
-    navigate("/login");
+navigate("/skill-setup");
   };
 
   return (

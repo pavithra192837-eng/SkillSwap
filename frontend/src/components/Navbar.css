@@ -9,8 +9,8 @@
 
   width: 100%;
 
-  background: #071A2B;
-  border-bottom: 1px solid #1E3A52;
+  background: #071a2b;
+  border-bottom: 1px solid #1e3a52;
 }
 
 
@@ -25,7 +25,6 @@
   min-height: 72px;
 
   margin: 0 auto;
-
   padding: 0 clamp(20px, 5vw, 70px);
 
   display: flex;
@@ -41,21 +40,47 @@
 ======================================== */
 
 .navbar-logo {
-  text-decoration: none;
+  margin: 0;
+  padding: 0;
 
-  color: #F8FAFC;
+  border: none;
+  outline: none;
 
-  font-size: clamp(22px, 2vw, 28px);
+  background: transparent !important;
+
+  color: #f8fafc !important;
+
+  font-family: inherit;
+
+  /* LARGE LOGO */
+  font-size: 32px;
 
   font-weight: 800;
 
-  letter-spacing: -0.8px;
+  letter-spacing: -1px;
 
   white-space: nowrap;
+
+  cursor: pointer;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  box-shadow: none;
 }
 
 .navbar-logo span {
-  color: #3B82F6;
+  color: #3b82f6 !important;
+}
+
+.navbar-logo:hover {
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.navbar-logo:focus {
+  outline: none;
+  background: transparent;
 }
 
 
@@ -70,22 +95,27 @@
   gap: clamp(22px, 3vw, 42px);
 
   margin-left: auto;
-
   margin-right: clamp(20px, 3vw, 45px);
 }
 
 
 .nav-link {
   position: relative;
+
   text-decoration: none;
-  color: #94A3B8;
+
+  color: #94a3b8;
+
   font-size: 14px;
   font-weight: 600;
+
   padding: 8px 0;
 
   background: none;
   border: none;
+
   font-family: inherit;
+
   cursor: pointer;
 
   transition: color 0.2s ease;
@@ -93,7 +123,7 @@
 
 
 .nav-link:hover {
-  color: #F8FAFC;
+  color: #f8fafc;
 }
 
 
@@ -110,7 +140,7 @@
   width: 0;
   height: 2px;
 
-  background: #3B82F6;
+  background: #3b82f6;
 
   transition: width 0.2s ease;
 }
@@ -149,7 +179,6 @@
   text-decoration: none;
 
   font-size: 14px;
-
   font-weight: 700;
 
   transition:
@@ -165,20 +194,20 @@
 ======================================== */
 
 .login-btn {
-  color: #F8FAFC;
+  color: #f8fafc;
 
   background: transparent;
 
-  border: 1px solid #1E3A52;
+  border: 1px solid #1e3a52;
 }
 
 
 .login-btn:hover {
-  background: #0B253D;
+  background: #0b253d;
 
-  border-color: #3B82F6;
+  border-color: #3b82f6;
 
-  color: #F8FAFC;
+  color: #f8fafc;
 }
 
 
@@ -187,18 +216,18 @@
 ======================================== */
 
 .signup-btn {
-  color: #F8FAFC;
+  color: #f8fafc;
 
-  background: #3B82F6;
+  background: #3b82f6;
 
-  border: 1px solid #3B82F6;
+  border: 1px solid #3b82f6;
 }
 
 
 .signup-btn:hover {
-  background: #2563EB;
+  background: #2563eb;
 
-  border-color: #2563EB;
+  border-color: #2563eb;
 
   transform: translateY(-1px);
 }
@@ -216,11 +245,11 @@
 
   padding: 0;
 
-  border: 1px solid #1E3A52;
+  border: 1px solid #1e3a52;
 
   border-radius: 8px;
 
-  background: #0B253D;
+  background: #0b253d;
 
   align-items: center;
   justify-content: center;
@@ -239,7 +268,7 @@
   width: 20px;
   height: 2px;
 
-  background: #F8FAFC;
+  background: #f8fafc;
 
   transition:
     transform 0.2s ease,
@@ -255,11 +284,9 @@
   transform: translateY(7px) rotate(45deg);
 }
 
-
 .menu-button.active span:nth-child(2) {
   opacity: 0;
 }
-
 
 .menu-button.active span:nth-child(3) {
   transform: translateY(-7px) rotate(-45deg);
@@ -299,6 +326,7 @@
   .signup-btn {
     padding: 0 14px;
   }
+
 }
 
 
@@ -340,9 +368,9 @@
 
     width: 100%;
 
-    background: #071A2B;
+    background: #071a2b;
 
-    border-top: 1px solid #1E3A52;
+    border-top: 1px solid #1e3a52;
 
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
 
@@ -368,37 +396,46 @@
   /* Mobile links */
 
   .mobile-menu a,
-.mobile-menu button {
-  width: 100%;
-  padding: 16px 20px;
+  .mobile-menu button {
 
-  border: none;
-  border-bottom: 1px solid #1E3A52;
+    width: 100%;
 
-  background: transparent;
+    padding: 16px 20px;
 
-  text-decoration: none;
-  text-align: left;
+    border: none;
 
-  color: #94A3B8;
+    border-bottom: 1px solid #1e3a52;
 
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 600;
+    background: transparent;
 
-  cursor: pointer;
+    text-decoration: none;
 
-  transition:
-    color 0.2s ease,
-    background-color 0.2s ease;
-}
+    text-align: left;
+
+    color: #94a3b8;
+
+    font-family: inherit;
+
+    font-size: 15px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
 
 
   .mobile-menu a:hover,
-.mobile-menu button:hover {
-  color: #F8FAFC;
-  background: #0B253D;
-}
+  .mobile-menu button:hover {
+
+    color: #f8fafc;
+
+    background: #0b253d;
+  }
+
 }
 
 
@@ -413,13 +450,14 @@
   }
 
   .navbar-logo {
-    font-size: 22px;
+    font-size: 25px;
   }
 
   .menu-button {
     width: 42px;
     height: 42px;
   }
+
 }
 
 
@@ -434,20 +472,24 @@
   }
 
   .navbar-logo {
-    font-size: 21px;
+    font-size: 23px;
   }
+
 }
 
 
 /* ========================================
    ACCESSIBILITY
 ======================================== */
+
 .menu-button:focus-visible,
 .nav-link:focus-visible,
 .login-btn:focus-visible,
 .signup-btn:focus-visible,
 .mobile-menu a:focus-visible,
 .mobile-menu button:focus-visible {
+
   outline: 3px solid rgba(59, 130, 246, 0.35);
+
   outline-offset: 3px;
 }
