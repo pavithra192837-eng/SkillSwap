@@ -482,4 +482,38 @@
 
     gap: 5px;
   }
+  /* ========================================
+   LOGIN VALIDATION
+======================================== */
+
+.field-error {
+  margin-top: -3px;
+  color: #f87171;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.10) !important;
+}
+
+.input-error:focus {
+  border-color: #ef4444 !important;
+}
+
+.login-error-message {
+  margin-bottom: 20px;
+  padding: 11px 13px;
+
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 7px;
+
+  background: rgba(239, 68, 68, 0.08);
+
+  color: #fca5a5;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
 }

@@ -1,103 +1,108 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import "./Matches.css";
 
-const matchesData = [
+/* =========================
+   SAMPLE USERS
+========================= */
+
+const users = [
   {
     id: 1,
     name: "Arun Kumar",
-    department: "Computer Science",
-    year: "3rd Year",
-    teaches: "Python",
-    wants: "UI/UX Design",
-    match: "92%",
-    avatar: "A",
-    status: "Available",
+    initials: "AK",
+    department: "CSE",
+    skillsToTeach: ["React", "JavaScript", "HTML"],
+    skillsToLearn: ["Python"],
+    rating: "4.8",
+    exchanges: 14,
   },
+
   {
     id: 2,
-    name: "Priya Sharma",
-    department: "Information Technology",
-    year: "3rd Year",
-    teaches: "Figma",
-    wants: "JavaScript",
-    match: "88%",
-    avatar: "P",
-    status: "Available",
+    name: "Priya S",
+    initials: "PS",
+    department: "ECE",
+    skillsToTeach: ["Python", "Java"],
+    skillsToLearn: ["React", "Figma"],
+    rating: "4.7",
+    exchanges: 9,
   },
+
   {
     id: 3,
-    name: "Rahul Raj",
-    department: "ECE",
-    year: "3rd Year",
-    teaches: "React",
-    wants: "Data Science",
-    match: "84%",
-    avatar: "R",
-    status: "Available",
+    name: "Vignesh R",
+    initials: "VR",
+    department: "IT",
+    skillsToTeach: ["React", "MongoDB"],
+    skillsToLearn: ["JavaScript"],
+    rating: "4.9",
+    exchanges: 18,
   },
+
   {
     id: 4,
-    name: "Sneha Devi",
-    department: "AI & DS",
-    year: "2nd Year",
-    teaches: "Machine Learning",
-    wants: "Python",
-    match: "81%",
-    avatar: "S",
-    status: "Available",
+    name: "Divya M",
+    initials: "DM",
+    department: "CSE",
+    skillsToTeach: ["UI/UX Design", "Figma"],
+    skillsToLearn: ["React"],
+    rating: "4.6",
+    exchanges: 7,
   },
+
   {
     id: 5,
-    name: "Karthik Raj",
-    department: "CSE",
-    year: "3rd Year",
-    teaches: "JavaScript",
-    wants: "C++",
-    match: "78%",
-    avatar: "K",
-    status: "Available",
+    name: "Karthik S",
+    initials: "KS",
+    department: "ECE",
+    skillsToTeach: ["Java", "C++"],
+    skillsToLearn: ["React"],
+    rating: "4.8",
+    exchanges: 11,
   },
+
   {
     id: 6,
-    name: "Meena Priya",
-    department: "ECE",
-    year: "2nd Year",
-    teaches: "UI/UX Design",
-    wants: "Python",
-    match: "75%",
-    avatar: "M",
-    status: "Available",
+    name: "Harini P",
+    initials: "HP",
+    department: "AI & DS",
+    skillsToTeach: ["Python", "MongoDB"],
+    skillsToLearn: ["JavaScript"],
+    rating: "4.9",
+    exchanges: 15,
   },
 ];
 
+
 function Matches() {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All");
-  const [connected, setConnected] = useState([]);
 
-  const filteredMatches = matchesData.filter((person) => {
-    const searchValue = search.toLowerCase();
+  const [searchParams] = useSearchParams();
 
-    const matchesSearch =
-      person.name.toLowerCase().includes(searchValue) ||
-      person.teaches.toLowerCase().includes(searchValue) ||
-      person.wants.toLowerCase().includes(searchValue) ||
-      person.department.toLowerCase().includes(searchValue);
+  const selectedSkill =
+    searchParams.get("skill") || "";
 
-    const matchesFilter =
-      filter === "All" ||
-      person.teaches === filter ||
-      person.wants === filter;
 
-    return matchesSearch && matchesFilter;
-  });
+  /* =========================
+     FILTER USERS
+  ========================= */
 
-  const handleConnect = (id) => {
-    if (!connected.includes(id)) {
-      setConnected([...connected, id]);
+  const matchedUsers = useMemo(() => {
+
+    if (!selectedSkill) {
+      return [];
     }
-  };
+
+    return users.filter((user) =>
+      user.skillsToTeach.some(
+        (skill) =>
+          skill.toLowerCase() ===
+          selectedSkill.toLowerCase()
+      )
+    );
+
+  }, [selectedSkill]);
+
 
   return (
     <main className="matches-page">
@@ -106,244 +111,187 @@ function Matches() {
 
         {/* HEADER */}
 
-        <section className="matches-header">
+        <div className="matches-header">
 
-          <div>
-            <Link
-              to="/dashboard"
-              className="matches-back"
-            >
-              ← Back to Dashboard
-            </Link>
-
-            <p className="matches-label">
-              SKILLSWAP MATCHING
-            </p>
-
-            <h1>
-              Find your <span>skill match.</span>
-            </h1>
-
-            <p>
-              Discover students who can teach what you want
-              to learn and want to learn what you can teach.
-            </p>
-          </div>
-
-        </section>
-
-
-        {/* SEARCH + FILTER */}
-
-        <section className="matches-toolbar">
-
-          <div className="matches-search">
-
-            <span>⌕</span>
-
-            <input
-              type="text"
-              placeholder="Search people or skills..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-          </div>
-
-
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="matches-filter"
+          <Link
+            to="/explore"
+            className="matches-back"
           >
-            <option value="All">
-              All Skills
-            </option>
+            ← Back to Explore
+          </Link>
 
-            <option value="Python">
-              Python
-            </option>
+          <p className="matches-label">
+            SKILL MATCHES
+          </p>
 
-            <option value="JavaScript">
-              JavaScript
-            </option>
+          <h1>
+            Learners for {selectedSkill}
+          </h1>
 
-            <option value="React">
-              React
-            </option>
-
-            <option value="Figma">
-              Figma
-            </option>
-
-            <option value="UI/UX Design">
-              UI/UX Design
-            </option>
-
-            <option value="C++">
-              C++
-            </option>
-
-          </select>
-
-        </section>
-
-
-        {/* RESULT HEADER */}
-
-        <div className="matches-result-header">
-
-          <div>
-            <span className="result-label">
-              DISCOVER
-            </span>
-
-            <h2>
-              Suggested Matches
-            </h2>
-          </div>
-
-          <span className="result-count">
-            {filteredMatches.length} matches
-          </span>
+          <p className="matches-subtitle">
+            Connect with people who can teach you{" "}
+            <strong>{selectedSkill}</strong>.
+          </p>
 
         </div>
 
 
-        {/* MATCH GRID */}
+        {/* MATCH RESULTS */}
 
-        <section className="matches-grid">
+        {matchedUsers.length > 0 ? (
 
-          {filteredMatches.map((person) => {
+          <div className="matches-grid">
 
-            const isConnected =
-              connected.includes(person.id);
-
-            return (
+            {matchedUsers.map((user) => (
 
               <article
                 className="match-card"
-                key={person.id}
+                key={user.id}
               >
 
-                {/* CARD TOP */}
+                {/* USER HEADER */}
 
-                <div className="match-card-top">
+                <div className="match-user-header">
 
-                  <div className="match-card-avatar">
-                    {person.avatar}
+                  <div className="match-avatar">
+                    {user.initials}
                   </div>
 
-                  <div className="match-card-score">
+                  <div>
 
-                    <strong>
-                      {person.match}
-                    </strong>
+                    <h2>
+                      {user.name}
+                    </h2>
 
-                    <span>
-                      Match
-                    </span>
+                    <p>
+                      {user.department}
+                    </p>
 
                   </div>
-
-                </div>
-
-
-                {/* PERSON */}
-
-                <div className="match-card-person">
-
-                  <h3>
-                    {person.name}
-                  </h3>
-
-                  <p>
-                    {person.department} · {person.year}
-                  </p>
-
-                  <span className="available-badge">
-                    ● {person.status}
-                  </span>
 
                 </div>
 
 
                 {/* SKILLS */}
 
-                <div className="exchange-box">
+                <div className="match-section">
 
-                  <div className="exchange-skill">
+                  <span className="match-section-label">
+                    CAN TEACH
+                  </span>
 
-                    <span>
-                      CAN TEACH
-                    </span>
+                  <div className="match-skills">
 
-                    <strong>
-                      {person.teaches}
-                    </strong>
+                    {user.skillsToTeach.map(
+                      (skill) => (
 
-                  </div>
+                        <span
+                          key={skill}
+                          className={
+                            skill.toLowerCase() ===
+                            selectedSkill.toLowerCase()
+                              ? "match-skill highlighted"
+                              : "match-skill"
+                          }
+                        >
+                          {skill}
+                        </span>
 
-                  <div className="exchange-arrow">
-                    ⇄
-                  </div>
-
-                  <div className="exchange-skill">
-
-                    <span>
-                      WANTS TO LEARN
-                    </span>
-
-                    <strong>
-                      {person.wants}
-                    </strong>
+                      )
+                    )}
 
                   </div>
 
                 </div>
 
 
-                {/* CONNECT */}
+                {/* LEARNING */}
+
+                <div className="match-section">
+
+                  <span className="match-section-label">
+                    WANTS TO LEARN
+                  </span>
+
+                  <div className="match-skills">
+
+                    {user.skillsToLearn.map(
+                      (skill) => (
+
+                        <span
+                          key={skill}
+                          className="match-skill learn"
+                        >
+                          {skill}
+                        </span>
+
+                      )
+                    )}
+
+                  </div>
+
+                </div>
+
+
+                {/* STATS */}
+
+                <div className="match-stats">
+
+                  <div>
+                    <span>Rating</span>
+                    <strong>
+                      {user.rating}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Exchanges</span>
+                    <strong>
+                      {user.exchanges}
+                    </strong>
+                  </div>
+
+                </div>
+
+
+                {/* ACTION */}
 
                 <button
-                  className={`connect-button ${
-                    isConnected ? "connected" : ""
-                  }`}
-                  onClick={() =>
-                    handleConnect(person.id)
-                  }
-                  disabled={isConnected}
+                  type="button"
+                  className="connect-button"
                 >
-                  {isConnected
-                    ? "✓ Request Sent"
-                    : "Connect"}
+                  Connect
                 </button>
 
               </article>
 
-            );
-          })}
+            ))}
 
-        </section>
+          </div>
 
+        ) : (
 
-        {/* NO RESULTS */}
+          <div className="no-matches">
 
-        {filteredMatches.length === 0 && (
-
-          <div className="matches-empty">
-
-            <div>
-              🔎
+            <div className="no-matches-icon">
+              🔍
             </div>
 
-            <h3>
+            <h2>
               No matches found
-            </h3>
+            </h2>
 
             <p>
-              Try searching for another skill or person.
+              We couldn't find anyone who can teach{" "}
+              <strong>{selectedSkill}</strong> yet.
             </p>
+
+            <Link
+              to="/explore"
+              className="back-explore-button"
+            >
+              Explore Other Skills
+            </Link>
 
           </div>
 

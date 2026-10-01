@@ -1,3 +1,4 @@
+// import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import "./Dashboard.css";
@@ -97,8 +98,7 @@ function Dashboard() {
             Dashboard
           </Link>
 
-
-          {/* PROFILE - NEW */}
+          {/* PROFILE */}
           <Link
             to="/profile"
             className="dashboard-nav-item"
@@ -107,7 +107,6 @@ function Dashboard() {
             <span>◯</span>
             Profile
           </Link>
-
 
           {/* EXPLORE */}
           <Link
@@ -119,67 +118,70 @@ function Dashboard() {
             Explore Skills
           </Link>
 
-
           {/* MATCHES */}
           <Link
-  to="/matches"
-  className="dashboard-nav-item"
-  onClick={() => setSidebarOpen(false)}
->
-  <span>✦</span>
-  Matches
-</Link>
-
-
-          {/* REQUESTS */}
-          <button
+            to="/matches"
             className="dashboard-nav-item"
             onClick={() => setSidebarOpen(false)}
           >
-            <span>⇄</span>
-            Requests
-          </button>
+            <span>✦</span>
+            Matches
+          </Link>
 
+          {/* REQUESTS */}
+          <Link
+            to="/requests"
+            className="dashboard-nav-item"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <span>...</span>
+            Requests
+          </Link>
 
           {/* SESSIONS */}
-          <button
+          <Link
+            to="/sessions"
             className="dashboard-nav-item"
             onClick={() => setSidebarOpen(false)}
           >
             <span>▣</span>
             Sessions
-          </button>
+          </Link>
+          <Link
+  to="/messages"
+  className="dashboard-nav-item"
+  onClick={() => setSidebarOpen(false)}
+>
+  <span>◌</span>
+  Messages
+</Link>
 
 
-          {/* MESSAGES */}
-          <button
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>◌</span>
-            Messages
-          </button>
-
+          
 
           {/* NOTIFICATIONS */}
-          <button
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>◉</span>
-            Notifications
-          </button>
+          <Link
+  to="/notifications"
+  className="dashboard-nav-item"
+  onClick={() => setSidebarOpen(false)}
+>
+  <span>◉</span>
+  Notifications
+</Link>
 
         </nav>
-
 
         {/* SIDEBAR BOTTOM */}
         <div className="sidebar-bottom">
 
-          <button className="dashboard-nav-item">
-            <span>⚙</span>
-            Settings
-          </button>
+          <Link
+  to="/settings"
+  className="dashboard-nav-item"
+  onClick={() => setSidebarOpen(false)}
+>
+  <span>⚙</span>
+  Settings
+</Link>
 
           <Link
             to="/"
@@ -192,7 +194,6 @@ function Dashboard() {
         </div>
 
       </aside>
-
 
       {/* MAIN AREA */}
       <div className="dashboard-main">
@@ -240,7 +241,6 @@ function Dashboard() {
 
         </header>
 
-
         {/* DASHBOARD CONTENT */}
         <div className="dashboard-content">
 
@@ -271,7 +271,6 @@ function Dashboard() {
 
           </section>
 
-
           {/* STATS */}
           <section className="dashboard-stats">
 
@@ -288,7 +287,6 @@ function Dashboard() {
 
             </div>
 
-
             <div className="dashboard-stat-card">
 
               <div className="stat-icon cyan">
@@ -302,7 +300,6 @@ function Dashboard() {
 
             </div>
 
-
             <div className="dashboard-stat-card">
 
               <div className="stat-icon green">
@@ -315,7 +312,6 @@ function Dashboard() {
               </div>
 
             </div>
-
 
             <div className="dashboard-stat-card">
 
@@ -331,7 +327,6 @@ function Dashboard() {
             </div>
 
           </section>
-
 
           {/* MAIN GRID */}
           <div className="dashboard-grid">
@@ -351,9 +346,9 @@ function Dashboard() {
                   </h2>
                 </div>
 
-                <button>
+                <Link to="/matches">
                   View all →
-                </button>
+                </Link>
 
               </div>
 
@@ -407,7 +402,6 @@ function Dashboard() {
               </div>
 
             </section>
-
 
             {/* SKILLS */}
             <section className="dashboard-panel skills-panel">
@@ -466,7 +460,6 @@ function Dashboard() {
 
             </section>
 
-
             {/* REQUESTS */}
             <section className="dashboard-panel requests-panel">
 
@@ -482,9 +475,9 @@ function Dashboard() {
                   </h2>
                 </div>
 
-                <button>
+                <Link to="/requests">
                   View all →
-                </button>
+                </Link>
 
               </div>
 
@@ -522,7 +515,6 @@ function Dashboard() {
 
               </div>
 
-
               <div className="request-card">
 
                 <div className="request-avatar">
@@ -559,7 +551,6 @@ function Dashboard() {
 
             </section>
 
-
             {/* UPCOMING SESSION */}
             <section className="dashboard-panel session-panel">
 
@@ -575,9 +566,9 @@ function Dashboard() {
                   </h2>
                 </div>
 
-                <button>
+                <Link to="/sessions">
                   View all →
-                </button>
+                </Link>
 
               </div>
 
@@ -604,16 +595,15 @@ function Dashboard() {
 
                 </div>
 
-                <button>
+                <Link to="/sessions">
                   Join
-                </button>
+                </Link>
 
               </div>
 
             </section>
 
           </div>
-
 
           {/* RECENT ACTIVITY */}
           <section className="dashboard-panel activity-panel">

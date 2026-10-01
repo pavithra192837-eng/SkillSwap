@@ -6,7 +6,12 @@ import Explore from "./pages/Explore";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Matches from "./pages/Matches";
-
+import Requests from "./pages/Requests";
+import Sessions from "./pages/Sessions";
+import Messages from "./pages/Messages";
+import Settings from "./pages/Settings";
+import Call from "./pages/Call";
+import Notifications from "./pages/Notifications";
 function Home() {
   const navigate = useNavigate();
 
@@ -455,8 +460,22 @@ function App() {
   element={<Profile />}
 />
 <Route path="/matches" element={<Matches />} />
+<Route path="/requests" element={<Requests />} />
+      
+      <Route path="/sessions" element={<Sessions />} />
+      <Route path="/messages" element={<Messages />} />
+      <Route path="/settings" element={<Settings />} />
+      <Route path="/voice-call" element={<Call />} />
+      <Route path="/video-call" element={<Call />} />
+      <Route
+  path="/notifications"
+  element={<Notifications />}
+/>
+
       </Routes>
     </>
+    
+    
   );
 }
 

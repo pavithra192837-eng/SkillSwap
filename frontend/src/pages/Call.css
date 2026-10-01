@@ -1,0 +1,474 @@
+/* =====================================================
+   SKILLSWAP — CALL UI
+   Dark Blue Professional Theme
+===================================================== */
+
+.call-page {
+  width: 100%;
+  height: 100vh;
+  background: #08111f;
+  color: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* =====================================================
+   TOP BAR
+===================================================== */
+
+.call-topbar {
+  height: 72px;
+  padding: 0 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: #0d192b;
+  border-bottom: 1px solid #223653;
+}
+
+.call-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.call-user-avatar {
+  width: 43px;
+  height: 43px;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    135deg,
+    #2563eb,
+    #3b82f6
+  );
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.call-user-info h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.call-user-info p {
+  margin: 4px 0 0;
+  color: #8091aa;
+  font-size: 10px;
+}
+
+.call-more-button {
+  width: 40px;
+  height: 40px;
+
+  border: 1px solid #263b59;
+  border-radius: 9px;
+
+  background: #111f33;
+  color: #a9b8cc;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.call-more-button:hover {
+  background: #162943;
+  color: #ffffff;
+  border-color: #355276;
+}
+
+/* =====================================================
+   CALL CONTENT
+===================================================== */
+
+.call-content {
+  flex: 1;
+
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =====================================================
+   VOICE CALL
+===================================================== */
+
+.voice-call-content {
+  background:
+    radial-gradient(
+      circle at center,
+      #142b4b 0%,
+      #0b1729 45%,
+      #08111f 100%
+    );
+}
+
+.voice-call-center {
+  text-align: center;
+
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
+.voice-avatar-wrapper {
+  position: relative;
+
+  width: 155px;
+  height: 155px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 24px;
+}
+
+.voice-avatar-ring {
+  position: absolute;
+
+  width: 155px;
+  height: 155px;
+
+  border-radius: 50%;
+
+  border: 1px solid rgba(59, 130, 246, 0.5);
+
+  animation: callPulse 2s infinite;
+}
+
+.voice-call-avatar {
+  width: 105px;
+  height: 105px;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    135deg,
+    #2563eb,
+    #3b82f6
+  );
+
+  box-shadow:
+    0 0 35px rgba(59, 130, 246, 0.25);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 32px;
+  font-weight: 700;
+}
+
+@keyframes callPulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+
+  70% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+.voice-call-center h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.call-status {
+  margin: 9px 0 0;
+
+  color: #8fa1b8;
+  font-size: 12px;
+}
+
+.skill-exchange {
+  margin: 9px 0 0;
+
+  color: #607590;
+  font-size: 10px;
+}
+
+/* =====================================================
+   VIDEO CALL
+===================================================== */
+
+.video-call-content {
+  background: #050b14;
+  padding: 20px;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  max-width: 1200px;
+
+  position: relative;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #14243b,
+      #0b1525
+    );
+
+  border-radius: 16px;
+  border: 1px solid #203550;
+
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.remote-user {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.large-call-avatar {
+  width: 110px;
+  height: 110px;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    135deg,
+    #2563eb,
+    #3b82f6
+  );
+
+  box-shadow:
+    0 0 40px rgba(59, 130, 246, 0.2);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.remote-user h2 {
+  margin: 18px 0 5px;
+  font-size: 18px;
+}
+
+.remote-user p {
+  margin: 0;
+
+  color: #7e91aa;
+  font-size: 11px;
+}
+
+/* =====================================================
+   LOCAL VIDEO
+===================================================== */
+
+.local-video {
+  position: absolute;
+
+  right: 18px;
+  bottom: 18px;
+
+  width: 185px;
+  height: 125px;
+
+  border-radius: 12px;
+
+  overflow: hidden;
+
+  border: 1px solid #355276;
+
+  background: #0d192b;
+
+  box-shadow:
+    0 10px 35px rgba(0, 0, 0, 0.5);
+}
+
+.local-video-placeholder,
+.camera-off {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  color: #aab8ca;
+}
+
+.local-video-placeholder span,
+.camera-off span {
+  font-size: 9px;
+}
+
+/* =====================================================
+   CONTROLS
+===================================================== */
+
+.call-controls {
+  min-height: 100px;
+
+  padding: 18px 25px;
+
+  background: #0d192b;
+  border-top: 1px solid #223653;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 14px;
+}
+
+.call-control {
+  min-width: 72px;
+  height: 62px;
+
+  padding: 7px 10px;
+
+  border: 1px solid #263b59;
+  border-radius: 11px;
+
+  background: #111f33;
+  color: #d6deea;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.call-control:hover {
+  background: #172a45;
+  border-color: #385778;
+}
+
+.call-control span {
+  font-size: 9px;
+  color: #899ab0;
+}
+
+.control-active {
+  background: #263449;
+  border-color: #3b4d66;
+}
+
+.end-call-button {
+  min-width: 82px;
+  height: 62px;
+
+  padding: 7px 12px;
+
+  border: none;
+  border-radius: 11px;
+
+  background: #dc3f50;
+  color: #ffffff;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.end-call-button:hover {
+  background: #c83243;
+  transform: translateY(-1px);
+}
+
+.end-call-button span {
+  font-size: 9px;
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 650px) {
+
+  .call-topbar {
+    height: 65px;
+    padding: 0 14px;
+  }
+
+  .call-content {
+    padding: 10px;
+  }
+
+  .call-controls {
+    min-height: 95px;
+    gap: 7px;
+    padding: 12px 8px;
+  }
+
+  .call-control {
+    min-width: 62px;
+    height: 57px;
+  }
+
+  .end-call-button {
+    min-width: 70px;
+    height: 57px;
+  }
+
+  .local-video {
+    width: 125px;
+    height: 90px;
+
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .large-call-avatar {
+    width: 85px;
+    height: 85px;
+  }
+}

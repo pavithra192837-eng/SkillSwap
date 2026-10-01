@@ -13,6 +13,7 @@ const initialProfileData = {
   college: "Your College Name",
   department: "Electronics and Communication Engineering",
   registerNumber: "Your Register Number",
+  phone: "",
   location: "Tamil Nadu, India",
 
   about:
@@ -48,7 +49,19 @@ function Profile() {
 
   const [editMode, setEditMode] = useState(false);
 
-  const [editData, setEditData] = useState(initialProfileData);
+  const [editData, setEditData] =
+    useState(initialProfileData);
+
+  const [errors, setErrors] = useState({});
+
+
+  /* =========================
+     WORD COUNT
+  ========================= */
+const getCharacterCount = (text) => {
+  return text.length;
+};
+  
 
 
   /* =========================
@@ -57,6 +70,7 @@ function Profile() {
 
   const handleEdit = () => {
     setEditData(profile);
+    setErrors({});
     setEditMode(true);
   };
 
@@ -67,6 +81,7 @@ function Profile() {
 
   const handleCancel = () => {
     setEditData(profile);
+    setErrors({});
     setEditMode(false);
   };
 
@@ -78,10 +93,124 @@ function Profile() {
   const handleChange = (event) => {
     const { name, value } = event.target;
 
+    let newValue = value;
+
+    /* PHONE */
+    if (name === "phone") {
+      newValue = value.replace(/\D/g, "");
+
+      if (newValue.length > 10) {
+        newValue = newValue.slice(0, 10);
+      }
+    }
+
+    /* NAME */
+    if (name === "name") {
+      newValue = value.replace(/[^a-zA-Z\s]/g, "");
+    }
+
+    /* REGISTER NUMBER */
+    if (name === "registerNumber") {
+      newValue = value.replace(/[^a-zA-Z0-9]/g, "");
+    }
+
+    /* ABOUT ME */
+    /* ABOUT ME */
+if (name === "about") {
+  if (value.length > 500) {
+    setErrors((previous) => ({
+      ...previous,
+      about: "About Me cannot exceed 500 characters.",
+    }));
+
+    return;
+  }
+
+  setErrors((previous) => ({
+    ...previous,
+    about: "",
+  }));
+}
+
     setEditData((previous) => ({
       ...previous,
-      [name]: value,
+      [name]: newValue,
     }));
+
+    /* Clear field error when user edits */
+    setErrors((previous) => ({
+      ...previous,
+      [name]:
+        name === "about"
+          ? previous.about
+          : "",
+    }));
+  };
+
+
+  /* =========================
+     VALIDATION
+  ========================= */
+
+  const validateProfile = () => {
+    const newErrors = {};
+
+    /* NAME */
+    if (!editData.name.trim()) {
+      newErrors.name = "Name is required.";
+    } else if (!/^[a-zA-Z\s]+$/.test(editData.name.trim())) {
+      newErrors.name =
+        "Name can contain only letters and spaces.";
+    }
+
+    /* PHONE */
+    if (!editData.phone.trim()) {
+      newErrors.phone = "Phone number is required.";
+    } else if (!/^\d{10}$/.test(editData.phone)) {
+      newErrors.phone =
+        "Phone number must contain exactly 10 digits.";
+    }
+
+    /* REGISTER NUMBER */
+    if (!editData.registerNumber.trim()) {
+      newErrors.registerNumber =
+        "Register number is required.";
+    } else if (
+      !/^[a-zA-Z0-9]+$/.test(
+        editData.registerNumber.trim()
+      )
+    ) {
+      newErrors.registerNumber =
+        "Register number can contain only letters and numbers.";
+    }
+
+    /* COLLEGE */
+    if (!editData.college.trim()) {
+      newErrors.college =
+        "College name is required.";
+    }
+
+    /* LOCATION */
+    if (!editData.location.trim()) {
+      newErrors.location =
+        "Location is required.";
+    }
+
+    /* ABOUT */
+   const aboutCharacterCount =
+  editData.about.length;
+
+if (!editData.about.trim()) {
+  newErrors.about =
+    "About Me is required.";
+} else if (aboutCharacterCount > 500) {
+  newErrors.about =
+    "About Me cannot exceed 500 characters.";
+}
+
+    setErrors(newErrors);
+
+    return Object.keys(newErrors).length === 0;
   };
 
 
@@ -92,6 +221,12 @@ function Profile() {
   const handleSave = (event) => {
     event.preventDefault();
 
+    const isValid = validateProfile();
+
+    if (!isValid) {
+      return;
+    }
+
     setProfile({
       ...editData,
       initials: editData.name
@@ -99,6 +234,7 @@ function Profile() {
         : "Y",
     });
 
+    setErrors({});
     setEditMode(false);
   };
 
@@ -143,7 +279,7 @@ function Profile() {
               className="edit-profile-button"
               onClick={handleEdit}
             >
-              ✏️ Edit Profile
+              Edit Profile
             </button>
           )}
 
@@ -164,6 +300,7 @@ function Profile() {
             <div className="edit-card-header">
 
               <div>
+
                 <p className="profile-label">
                   EDIT PROFILE
                 </p>
@@ -171,6 +308,7 @@ function Profile() {
                 <h2>
                   Update your information
                 </h2>
+
               </div>
 
             </div>
@@ -195,6 +333,12 @@ function Profile() {
                   placeholder="Enter your name"
                 />
 
+                {errors.name && (
+                  <small className="profile-error">
+                    {errors.name}
+                  </small>
+                )}
+
               </div>
 
 
@@ -215,6 +359,12 @@ function Profile() {
                   placeholder="Enter your college"
                 />
 
+                {errors.college && (
+                  <small className="profile-error">
+                    {errors.college}
+                  </small>
+                )}
+
               </div>
 
 
@@ -233,47 +383,47 @@ function Profile() {
                   onChange={handleChange}
                 >
 
-                  <option>
+                  <option value="Computer Science and Engineering">
                     Computer Science and Engineering
                   </option>
 
-                  <option>
+                  <option value="Information Technology">
                     Information Technology
                   </option>
 
-                  <option>
+                  <option value="Electronics and Communication Engineering">
                     Electronics and Communication Engineering
                   </option>
 
-                  <option>
+                  <option value="Electrical and Electronics Engineering">
                     Electrical and Electronics Engineering
                   </option>
 
-                  <option>
+                  <option value="Mechanical Engineering">
                     Mechanical Engineering
                   </option>
 
-                  <option>
+                  <option value="Civil Engineering">
                     Civil Engineering
                   </option>
 
-                  <option>
+                  <option value="Artificial Intelligence and Data Science">
                     Artificial Intelligence and Data Science
                   </option>
 
-                  <option>
+                  <option value="Artificial Intelligence and Machine Learning">
                     Artificial Intelligence and Machine Learning
                   </option>
 
-                  <option>
+                  <option value="Cyber Security">
                     Cyber Security
                   </option>
 
-                  <option>
+                  <option value="EIE">
                     EIE
                   </option>
 
-                  <option>
+                  <option value="IBT">
                     IBT
                   </option>
 
@@ -286,18 +436,70 @@ function Profile() {
 
               <div className="edit-form-group">
 
-                <label htmlFor="registerNumber">
-                  Register Number
+  <label htmlFor="registerNumber">
+    Register Number
+  </label>
+
+  <input
+    id="registerNumber"
+    name="registerNumber"
+    type="text"
+    inputMode="numeric"
+    value={editData.registerNumber}
+    onChange={(event) => {
+      const value = event.target.value;
+
+      if (/^\d*$/.test(value)) {
+        setEditData((previous) => ({
+          ...previous,
+          registerNumber: value,
+        }));
+
+        setErrors((previous) => ({
+          ...previous,
+          registerNumber: "",
+        }));
+      } else {
+        setErrors((previous) => ({
+          ...previous,
+          registerNumber: "Register number must contain numbers only.",
+        }));
+      }
+    }}
+    placeholder="Enter register number"
+  />
+
+  {errors.registerNumber && (
+    <small className="profile-error">
+      {errors.registerNumber}
+    </small>
+  )}
+
+</div>
+
+              {/* PHONE */}
+
+              <div className="edit-form-group">
+
+                <label htmlFor="phone">
+                  Phone Number
                 </label>
 
                 <input
-                  id="registerNumber"
-                  name="registerNumber"
-                  type="text"
-                  value={editData.registerNumber}
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={editData.phone}
                   onChange={handleChange}
-                  placeholder="Enter register number"
+                  placeholder="Enter 10-digit phone number"
+                  maxLength="10"
                 />
+
+                {errors.phone && (
+                  <small className="profile-error">
+                    {errors.phone}
+                  </small>
+                )}
 
               </div>
 
@@ -319,18 +521,34 @@ function Profile() {
                   placeholder="Enter your location"
                 />
 
+                {errors.location && (
+                  <small className="profile-error">
+                    {errors.location}
+                  </small>
+                )}
+
               </div>
 
             </div>
 
 
-            {/* ABOUT */}
+            {/* =========================
+                ABOUT ME
+            ========================= */}
 
             <div className="edit-form-group">
 
-              <label htmlFor="about">
-                About Me
-              </label>
+              <div className="about-label-row">
+
+                <label htmlFor="about">
+                  About Me
+                </label>
+
+              <span className="word-counter">
+  {getCharacterCount(editData.about)} / 500 characters
+</span>
+
+              </div>
 
               <textarea
                 id="about"
@@ -340,6 +558,12 @@ function Profile() {
                 placeholder="Tell people about yourself..."
                 rows="5"
               />
+
+              {errors.about && (
+                <small className="profile-error">
+                  {errors.about}
+                </small>
+              )}
 
             </div>
 
@@ -488,11 +712,7 @@ function Profile() {
 
             <div className="profile-content-grid">
 
-              {/* LEFT COLUMN */}
-
               <div className="profile-left-column">
-
-                {/* ABOUT */}
 
                 <section className="profile-card">
 
@@ -518,8 +738,6 @@ function Profile() {
 
                 </section>
 
-
-                {/* TEACH */}
 
                 <section className="profile-card">
 
@@ -561,8 +779,6 @@ function Profile() {
 
                 </section>
 
-
-                {/* LEARN */}
 
                 <section className="profile-card">
 
@@ -607,11 +823,7 @@ function Profile() {
               </div>
 
 
-              {/* RIGHT COLUMN */}
-
               <div className="profile-right-column">
-
-                {/* INFORMATION */}
 
                 <section className="profile-card">
 
@@ -662,12 +874,17 @@ function Profile() {
                       </strong>
                     </div>
 
+                    <div className="information-item">
+                      <span>Phone</span>
+                      <strong>
+                        {profile.phone || "Not added"}
+                      </strong>
+                    </div>
+
                   </div>
 
                 </section>
 
-
-                {/* COMPLETION */}
 
                 <section className="profile-card completion-card">
 
@@ -705,8 +922,6 @@ function Profile() {
 
                 </section>
 
-
-                {/* QUICK ACTIONS */}
 
                 <section className="profile-card">
 

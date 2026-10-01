@@ -1,0 +1,741 @@
+/* =====================================================
+   SKILLSWAP SETTINGS
+===================================================== */
+
+.settings-page {
+  min-height: 100vh;
+  padding: 35px;
+  background: #f6f8fc;
+  color: #243047;
+  font-family: Arial, Helvetica, sans-serif;
+  box-sizing: border-box;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.settings-container {
+  width: 100%;
+  max-width: 950px;
+  margin: 0 auto;
+}
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.settings-header h1 {
+  margin: 0;
+  font-size: 27px;
+  color: #172238;
+}
+
+.settings-header p {
+  margin: 7px 0 0;
+  color: #7c8799;
+  font-size: 13px;
+}
+
+.save-settings-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  background: #3155d9;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.save-settings-button:hover {
+  background: #2848bf;
+  transform: translateY(-1px);
+}
+
+/* =====================================================
+   SECTION
+===================================================== */
+
+.settings-section {
+  margin-bottom: 25px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 11px;
+  color: #3155d9;
+}
+
+.section-title h2 {
+  margin: 0;
+  color: #26334a;
+  font-size: 15px;
+}
+
+.section-title p {
+  margin: 3px 0 0;
+  color: #8993a4;
+  font-size: 10px;
+}
+
+/* =====================================================
+   CARD
+===================================================== */
+
+.settings-card {
+  background: #ffffff;
+  border: 1px solid #e2e7ef;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(30, 45, 70, 0.03);
+}
+
+/* =====================================================
+   SETTINGS ITEM
+===================================================== */
+
+.settings-item {
+  width: 100%;
+  min-height: 72px;
+  padding: 13px 16px;
+  border: none;
+  border-bottom: 1px solid #edf0f4;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  color: #7b8597;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  box-sizing: border-box;
+}
+
+.settings-item:last-child {
+  border-bottom: none;
+}
+
+.settings-item:hover {
+  background: #fafbfe;
+}
+
+.settings-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: #edf1ff;
+  color: #3155d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-item h3 {
+  margin: 0;
+  color: #354159;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-item p {
+  margin: 4px 0 0;
+  color: #8b94a4;
+  font-size: 10px;
+}
+
+/* =====================================================
+   SWITCH
+===================================================== */
+
+.switch {
+  position: relative;
+  width: 42px;
+  height: 23px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: #ccd3df;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.switch input:checked + .slider {
+  background: #3155d9;
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(19px);
+}
+
+.switch input:disabled + .slider {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.disabled-setting {
+  opacity: 0.55;
+}
+
+/* =====================================================
+   LANGUAGE
+===================================================== */
+
+.language-row {
+  min-height: 72px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.language-row h3 {
+  margin: 0;
+  color: #354159;
+  font-size: 12px;
+}
+
+.language-row p {
+  margin: 4px 0 0;
+  color: #8b94a4;
+  font-size: 10px;
+}
+
+.language-row select {
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid #dce2eb;
+  border-radius: 7px;
+  outline: none;
+  background: #ffffff;
+  color: #455168;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.language-row select:focus {
+  border-color: #3155d9;
+}
+
+/* =====================================================
+   DANGER
+===================================================== */
+
+.danger-title {
+  color: #c03939;
+}
+
+.danger-title h2 {
+  color: #4b3940;
+}
+
+.logout-button {
+  width: 100%;
+  padding: 13px 16px;
+  border: none;
+  background: #ffffff;
+  color: #c03939;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: 0.2s;
+}
+
+.logout-button:hover {
+  background: #fff5f5;
+}
+
+/* =====================================================
+   SECURITY MODAL OVERLAY
+===================================================== */
+
+.security-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background: rgba(10, 18, 35, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+/* =====================================================
+   SECURITY MODAL
+===================================================== */
+
+.security-modal {
+  width: 100%;
+  max-width: 460px;
+
+  background: #ffffff;
+  border: 1px solid #e0e5ee;
+  border-radius: 16px;
+
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.25);
+
+  overflow: hidden;
+
+  animation: securityModalIn 0.2s ease;
+}
+
+@keyframes securityModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =====================================================
+   SECURITY HEADER
+===================================================== */
+
+.security-modal-header {
+  padding: 18px 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+.security-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.security-modal-icon {
+  width: 42px;
+  height: 42px;
+
+  border-radius: 10px;
+
+  background: #edf1ff;
+  color: #3155d9;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.security-modal-title h2 {
+  margin: 0;
+
+  color: #1d2940;
+  font-size: 16px;
+}
+
+.security-modal-title p {
+  margin: 4px 0 0;
+
+  color: #8993a4;
+  font-size: 10px;
+}
+
+.security-close {
+  width: 32px;
+  height: 32px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: #f1f3f7;
+  color: #667085;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.security-close:hover {
+  background: #e7ebf2;
+  color: #28344a;
+}
+
+/* =====================================================
+   SECURITY FORM
+===================================================== */
+
+.security-form {
+  padding: 20px;
+}
+
+.security-form label {
+  display: block;
+  margin-bottom: 15px;
+}
+
+.security-form label > span {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #46536a;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.password-input {
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  padding: 0 12px;
+
+  border: 1px solid #dce2eb;
+  border-radius: 8px;
+
+  background: #f8f9fc;
+
+  color: #7c8799;
+
+  transition: 0.2s;
+}
+
+.password-input:focus-within {
+  border-color: #3155d9;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(49, 85, 217, 0.08);
+}
+
+.password-input input {
+  width: 100%;
+  height: 100%;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  color: #25324a;
+
+  font-size: 12px;
+}
+
+/* =====================================================
+   SECURITY ACTIONS
+===================================================== */
+
+.security-actions {
+  display: flex;
+  justify-content: flex-end;
+
+  gap: 8px;
+
+  margin-top: 20px;
+}
+
+.security-cancel,
+.security-update {
+  height: 39px;
+
+  padding: 0 14px;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  transition: 0.2s;
+}
+
+.security-cancel {
+  border: 1px solid #dce2eb;
+  background: #ffffff;
+  color: #596579;
+}
+
+.security-cancel:hover {
+  background: #f5f7fa;
+}
+
+.security-update {
+  border: none;
+  background: #3155d9;
+  color: #ffffff;
+}
+
+.security-update:hover {
+  background: #2848bf;
+}
+
+/* =====================================================
+   DARK MODE
+===================================================== */
+
+body.dark-mode {
+  background: #08111f;
+}
+
+body.dark-mode .settings-page {
+  background: #08111f;
+  color: #e5eaf2;
+}
+
+.settings-dark .settings-header h1 {
+  color: #f1f5f9;
+}
+
+.settings-dark .settings-header p {
+  color: #8d9bb0;
+}
+
+.settings-dark .section-title h2 {
+  color: #e4e9f2;
+}
+
+.settings-dark .section-title p {
+  color: #8a97aa;
+}
+
+.settings-dark .settings-card {
+  background: #0d192b;
+  border-color: #223653;
+  box-shadow: none;
+}
+
+.settings-dark .settings-item {
+  background: #0d192b;
+  border-bottom-color: #223653;
+  color: #9ba9bc;
+}
+
+.settings-dark .settings-item:hover {
+  background: #111f33;
+}
+
+.settings-dark .settings-item h3 {
+  color: #e5eaf2;
+}
+
+.settings-dark .settings-item p {
+  color: #8d9bb0;
+}
+
+.settings-dark .settings-icon {
+  background: #172b4b;
+  color: #6f92ff;
+}
+
+.settings-dark .language-row h3 {
+  color: #e5eaf2;
+}
+
+.settings-dark .language-row p {
+  color: #8d9bb0;
+}
+
+.settings-dark .language-row select {
+  background: #111f33;
+  border-color: #2b405e;
+  color: #e5eaf2;
+}
+
+.settings-dark .logout-button {
+  background: #0d192b;
+  color: #ff737f;
+}
+
+.settings-dark .logout-button:hover {
+  background: #211821;
+}
+
+.settings-dark .danger-title h2 {
+  color: #e7d5d9;
+}
+
+/* =====================================================
+   DARK MODE SECURITY MODAL
+===================================================== */
+
+.settings-dark .security-modal {
+  background: #0d192b;
+  border-color: #263b59;
+}
+
+.settings-dark .security-modal-header {
+  border-bottom-color: #223653;
+}
+
+.settings-dark .security-modal-title h2 {
+  color: #f1f5f9;
+}
+
+.settings-dark .security-modal-title p {
+  color: #8d9bb0;
+}
+
+.settings-dark .security-modal-icon {
+  background: #172b4b;
+  color: #6f92ff;
+}
+
+.settings-dark .security-close {
+  background: #172538;
+  color: #9aa9bd;
+}
+
+.settings-dark .security-close:hover {
+  background: #20324b;
+  color: #ffffff;
+}
+
+.settings-dark .security-form label > span {
+  color: #b8c3d2;
+}
+
+.settings-dark .password-input {
+  background: #111f33;
+  border-color: #2a405d;
+  color: #8d9bb0;
+}
+
+.settings-dark .password-input:focus-within {
+  background: #0f1c2e;
+  border-color: #4e72e8;
+}
+
+.settings-dark .password-input input {
+  color: #f1f5f9;
+}
+
+.settings-dark .security-cancel {
+  background: #111f33;
+  border-color: #2b405e;
+  color: #b7c2d1;
+}
+
+.settings-dark .security-cancel:hover {
+  background: #172943;
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 700px) {
+
+  .settings-page {
+    padding: 20px 13px;
+  }
+
+  .settings-header {
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .settings-header h1 {
+    font-size: 23px;
+  }
+
+  .save-settings-button {
+    padding: 9px 11px;
+    font-size: 10px;
+  }
+
+  .security-modal {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 500px) {
+
+  .settings-header {
+    flex-direction: column;
+  }
+
+  .save-settings-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .language-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .language-row select {
+    width: 100%;
+  }
+
+  .security-actions {
+    flex-direction: column-reverse;
+  }
+
+  .security-cancel,
+  .security-update {
+    width: 100%;
+  }
+}
