@@ -67,6 +67,16 @@ function Explore() {
 
       <div className="explore-container">
 
+        {/* BACK TO DASHBOARD */}
+
+        <button
+          type="button"
+          className="back-dashboard-button"
+          onClick={() => navigate("/dashboard")}
+        >
+          ← Back to Dashboard
+        </button>
+
         {/* HEADER */}
 
         <div className="explore-header">
@@ -87,7 +97,6 @@ function Explore() {
 
         </div>
 
-
         {/* SEARCH */}
 
         <div className="explore-search-wrapper">
@@ -103,7 +112,6 @@ function Explore() {
           />
 
         </div>
-
 
         {/* SKILLS */}
 
@@ -147,6 +155,7 @@ function Explore() {
           ) : (
 
             <div className="no-skills">
+
               <h3>
                 No skills found
               </h3>
@@ -154,6 +163,7 @@ function Explore() {
               <p>
                 Try searching for another skill.
               </p>
+
             </div>
 
           )}

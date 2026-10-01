@@ -452,5 +452,30 @@
   .skill-card {
     padding: 20px;
   }
+  /* ==============================
+   BACK TO DASHBOARD
+============================== */
+
+.back-dashboard-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 18px;
+  padding: 9px 14px;
+  border: 1px solid #dce2eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #3155d9;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.back-dashboard-button:hover {
+  background: #f1f4ff;
+  border-color: #3155d9;
+}
+  
 
 }
