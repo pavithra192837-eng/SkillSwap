@@ -1,297 +1,80 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Check, Clock3, MessageCircle, CalendarDays, X, RefreshCw } from "lucide-react";
-import api, { getErrorMessage } from "../api";
-import "./Requests.css";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, CalendarDays, Check, Clock3, MessageCircle, RefreshCw, UserRound, X } from 'lucide-react';
+import api, { getErrorMessage } from '../api';
+import './Requests.css';
 
-function initials(name = "User") {
-  return name.split(" ").filter(Boolean).map(x => x[0]).join("").slice(0, 2).toUpperCase();
-}
-
-function formatDate(value) {
-  if (!value) return "—";
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString([], {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
+function initials(name = 'Student') { return name.split(/\s+/).filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'S'; }
+function dateText(v) { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.getTime()) ? v : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
 
 export default function Requests() {
-  const [tab, setTab] = useState("received");
+  const [tab, setTab] = useState('received');
   const [incoming, setIncoming] = useState([]);
   const [outgoing, setOutgoing] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState(null);
-  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState('');
   const [scheduleFor, setScheduleFor] = useState(null);
-  const [scheduleAt, setScheduleAt] = useState("");
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(60);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
-      setError("");
-      const [inRes, outRes] = await Promise.all([
-        api.get("/requests/incoming"),
-        api.get("/requests/outgoing"),
-      ]);
-      setIncoming(inRes.data.requests || []);
-      setOutgoing(outRes.data.requests || []);
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not load your requests."));
-    } finally {
-      setLoading(false);
-    }
-  };
+      setError('');
+      const [a, b] = await Promise.all([api.get('/requests/incoming'), api.get('/requests/outgoing')]);
+      setIncoming(a.data.requests || []);
+      setOutgoing(b.data.requests || []);
+    } catch (e) { setError(getErrorMessage(e, 'Could not load your requests.')); }
+    finally { setLoading(false); }
+  }, []);
 
   useEffect(() => {
     load();
     const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
-  }, []);
+    const refresh = () => load();
+    window.addEventListener('skillswap:refresh', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('skillswap:refresh', refresh); };
+  }, [load]);
 
-  const pendingIncoming = useMemo(
-    () => incoming.filter(r => r.status === "PENDING"),
-    [incoming]
-  );
-  const pendingOutgoing = useMemo(
-    () => outgoing.filter(r => r.status === "PENDING"),
-    [outgoing]
-  );
+  const pendingReceived = useMemo(() => incoming.filter(r => r.status === 'PENDING').length, [incoming]);
+  const pendingSent = useMemo(() => outgoing.filter(r => r.status === 'PENDING').length, [outgoing]);
+  const list = tab === 'received' ? incoming : outgoing;
 
-  const accept = async (id) => {
-    try {
-      setBusyId(id);
-      setError("");
-      await api.put(`/requests/${id}/accept`);
-      await load();
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not accept this request."));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const reject = async (id) => {
-    if (!window.confirm("Decline this exchange request?")) return;
-    try {
-      setBusyId(id);
-      setError("");
-      await api.put(`/requests/${id}/reject`);
-      await load();
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not decline this request."));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const cancel = async (id) => {
-    if (!window.confirm("Cancel this exchange request?")) return;
-    try {
-      setBusyId(id);
-      setError("");
-      await api.delete(`/requests/${id}`);
-      await load();
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not cancel this request."));
-    } finally {
-      setBusyId(null);
-    }
+  const act = async (id, action, message) => {
+    try { setBusy(id); setError(''); await action(); await load(); }
+    catch (e) { setError(getErrorMessage(e, message)); }
+    finally { setBusy(null); }
   };
 
   const schedule = async (requestId) => {
-    if (!scheduleAt) {
-      setError("Choose a date and time first.");
-      return;
-    }
-    try {
-      setBusyId(requestId);
-      setError("");
-      await api.post("/sessions", {
-        request_id: requestId,
-        scheduled_at: scheduleAt,
-      });
-      setScheduleFor(null);
-      setScheduleAt("");
-      await load();
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not schedule the session."));
-    } finally {
-      setBusyId(null);
-    }
+    if (!scheduleAt) return setError('Choose a date and time first.');
+    await act(requestId, () => api.post('/sessions', { request_id: requestId, scheduled_at: scheduleAt, duration_minutes: durationMinutes }), 'Could not schedule the session.');
+    setScheduleFor(null); setScheduleAt(''); setDurationMinutes(60);
   };
 
-  const list = tab === "received" ? incoming : outgoing;
+  return <div className="requests-modern">
+    <section className="requests-intro"><div><span className="page-eyebrow">CONNECTIONS</span><h2>Exchange requests</h2><p>Review real requests from students, accept the right exchange and move into a shared learning session.</p></div><button className="outline-action" onClick={load}><RefreshCw size={16}/> Refresh</button></section>
 
-  return (
-    <main className="requests-page">
-      <div className="requests-container">
-        <section className="requests-header">
-          <Link to="/dashboard" className="requests-back">← Back to Dashboard</Link>
-          <p className="requests-label">SKILLSWAP CONNECTIONS</p>
-          <h1>Your <span>requests.</span></h1>
-          <p className="requests-description">
-            Every request below comes from your database account. Accepting a request
-            creates a real connection; no demo requests are used.
-          </p>
-        </section>
+    <div className="request-tabs"><button className={tab === 'received' ? 'active' : ''} onClick={() => setTab('received')}><span>Received</span><b>{pendingReceived}</b></button><button className={tab === 'sent' ? 'active' : ''} onClick={() => setTab('sent')}><span>Sent</span><b>{pendingSent}</b></button></div>
+    {error && <div className="request-alert">{error}</div>}
 
-        <div className="requests-toolbar">
-          <div className="requests-tabs">
-            <button className={tab === "received" ? "active" : ""} onClick={() => setTab("received")}>
-              Received <span>{pendingIncoming.length}</span>
-            </button>
-            <button className={tab === "sent" ? "active" : ""} onClick={() => setTab("sent")}>
-              Sent <span>{pendingOutgoing.length}</span>
-            </button>
-          </div>
-          <button className="refresh-requests" onClick={load} disabled={loading}>
-            <RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh
-          </button>
-        </div>
-
-        {error && <div className="request-alert">{error}</div>}
-
-        {loading ? (
-          <div className="requests-empty"><Clock3 size={28}/><h3>Loading requests…</h3></div>
-        ) : list.length === 0 ? (
-          <div className="requests-empty">
-            <MessageCircle size={30}/>
-            <h3>{tab === "received" ? "No received requests" : "No sent requests"}</h3>
-            <p>
-              {tab === "received"
-                ? "When another student sends you an exchange request, it will appear here."
-                : "Open a student's profile from Matches to send an exchange request."}
-            </p>
-            {tab === "sent" && <Link to="/matches" className="explore-matches-button">Explore Matches</Link>}
-          </div>
-        ) : (
-          <div className="requests-list">
-            {list.map(request => {
-              const received = tab === "received";
-              const person = received ? {
-                name: request.sender_name,
-                department: request.sender_department,
-                roll: request.sender_roll_no,
-              } : {
-                name: request.receiver_name,
-                department: request.receiver_department,
-                roll: request.receiver_roll_no,
-              };
-              const isPending = request.status === "PENDING";
-              const isAccepted = request.status === "ACCEPTED";
-              return (
-                <article className="request-card" key={request.id}>
-                  <div className="request-person">
-                    <div className="request-avatar">{initials(person.name)}</div>
-                    <div>
-                      <h3>{person.name}</h3>
-                      <p>{person.department || "Student"}{person.roll ? ` · ${person.roll}` : ""}</p>
-                    </div>
-                    <span className={`request-status status-${request.status.toLowerCase()}`}>
-                      {request.status}
-                    </span>
-                  </div>
-
-                  <div className="request-exchange">
-                    <div>
-                      <span>{received ? "THEY TEACH" : "YOU TEACH"}</span>
-                      <strong>{request.offered_skill_name}</strong>
-                    </div>
-                    <div className="request-arrow">⇄</div>
-                    <div>
-                      <span>{received ? "THEY WANT" : "YOU WANT"}</span>
-                      <strong>{request.requested_skill_name}</strong>
-                    </div>
-                  </div>
-
-                  {request.message && <p className="request-message">“{request.message}”</p>}
-
-                  <div className="request-meta">
-                    <span><Clock3 size={15}/> {formatDate(request.created_at)}</span>
-                  </div>
-
-                  {isPending && received && (
-                    <div className="request-actions">
-                      <button className="accept-button" disabled={busyId === request.id} onClick={() => accept(request.id)}>
-                        <Check size={16}/> {busyId === request.id ? "Accepting…" : "Accept connection"}
-                      </button>
-                      <button className="decline-button" disabled={busyId === request.id} onClick={() => reject(request.id)}>
-                        <X size={16}/> Decline
-                      </button>
-                    </div>
-                  )}
-
-                  {isPending && !received && (
-                    <div className="request-actions">
-                      <button className="cancel-button" disabled={busyId === request.id} onClick={() => cancel(request.id)}>
-                        <X size={16}/> Cancel request
-                      </button>
-                    </div>
-                  )}
-
-                  {isAccepted && received && (
-                    <div className="accepted-actions">
-                      <Link to={`/messages?userId=${request.sender_id}`} className="secondary-action">
-                        <MessageCircle size={16}/> Message
-                      </Link>
-                      {scheduleFor === request.id ? (
-                        <div className="schedule-box">
-                          <input
-                            type="datetime-local"
-                            value={scheduleAt}
-                            min={new Date().toISOString().slice(0, 16)}
-                            onChange={e => setScheduleAt(e.target.value)}
-                          />
-                          <button className="accept-button" disabled={busyId === request.id} onClick={() => schedule(request.id)}>
-                            <CalendarDays size={16}/> {busyId === request.id ? "Scheduling…" : "Confirm session"}
-                          </button>
-                          <button className="decline-button" onClick={() => { setScheduleFor(null); setScheduleAt(""); }}>
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button className="accept-button" onClick={() => setScheduleFor(request.id)}>
-                          <CalendarDays size={16}/> Schedule session
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {isAccepted && !received && (
-                    <div className="accepted-actions">
-                      <Link to={`/messages?userId=${request.receiver_id}`} className="secondary-action">
-                        <MessageCircle size={16}/> Message
-                      </Link>
-                      {scheduleFor === request.id ? (
-                        <div className="schedule-box">
-                          <input
-                            type="datetime-local"
-                            value={scheduleAt}
-                            min={new Date().toISOString().slice(0, 16)}
-                            onChange={e => setScheduleAt(e.target.value)}
-                          />
-                          <button className="accept-button" disabled={busyId === request.id} onClick={() => schedule(request.id)}>
-                            <CalendarDays size={16}/> Confirm session
-                          </button>
-                          <button className="decline-button" onClick={() => { setScheduleFor(null); setScheduleAt(""); }}>
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button className="accept-button" onClick={() => setScheduleFor(request.id)}>
-                          <CalendarDays size={16}/> Schedule session
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </main>
-  );
+    {loading ? <div className="requests-modern-empty"><RefreshCw className="spin"/><h3>Loading requests</h3><p>Syncing with your account…</p></div> : !list.length ? <div className="requests-modern-empty"><MessageCircle size={30}/><h3>{tab === 'received' ? 'No requests yet' : 'Nothing sent yet'}</h3><p>{tab === 'received' ? 'When another student wants to exchange skills with you, their request will appear here.' : 'Find a reciprocal match and send your first exchange request.'}</p><Link to={tab === 'received' ? '/matches' : '/matches'} className="empty-link">Explore matches <ArrowRight size={14}/></Link></div> : <div className="request-list-modern">
+      {list.map(request => {
+        const received = tab === 'received';
+        const person = received ? { id: request.sender_id, name: request.sender_name, department: request.sender_department, college: request.sender_college, bio: request.sender_bio } : { id: request.receiver_id, name: request.receiver_name, department: request.receiver_department, college: request.receiver_college, bio: request.receiver_bio };
+        const pending = request.status === 'PENDING';
+        const accepted = request.status === 'ACCEPTED';
+        return <article className="request-modern-card" key={request.id}>
+          <div className="request-card-top"><Link to={`/profile/${person.id}`} className="request-person-modern"><div className="request-avatar-modern">{initials(person.name)}</div><div><strong>{person.name}</strong><span>{person.department || 'Student'}{person.college ? ` · ${person.college}` : ''}</span></div></Link><span className={`request-state ${String(request.status).toLowerCase()}`}>{request.status}</span></div>
+          <div className="exchange-strip"><div><small>{received ? 'THEY OFFER' : 'YOU OFFER'}</small><strong>{request.offered_skill_name}</strong></div><div className="exchange-symbol">⇄</div><div><small>{received ? 'THEY WANT' : 'YOU WANT'}</small><strong>{request.requested_skill_name}</strong></div></div>
+          {request.message && <div className="request-quote">“{request.message}”</div>}
+          <div className="request-footer"><span><Clock3 size={14}/> {dateText(request.created_at)}</span><div className="request-footer-actions">
+            {pending && received && <><button className="request-accept" disabled={busy === request.id} onClick={() => act(request.id, () => api.put(`/requests/${request.id}/accept`), 'Could not accept the request.')}><Check size={15}/> Accept</button><button className="request-decline" disabled={busy === request.id} onClick={() => act(request.id, () => api.put(`/requests/${request.id}/reject`), 'Could not decline the request.')}><X size={15}/> Decline</button></>}
+            {pending && !received && <button className="request-decline" disabled={busy === request.id} onClick={() => act(request.id, () => api.delete(`/requests/${request.id}`), 'Could not cancel the request.')}><X size={15}/> Cancel</button>}
+            {accepted && <><Link className="request-message" to={`/messages?userId=${person.id}`}><MessageCircle size={15}/> Message</Link>{scheduleFor === request.id ? <div className="schedule-inline"><input type="datetime-local" min={new Date().toISOString().slice(0,16)} value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}/><select value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))} aria-label="Session duration"><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option><option value={90}>90 minutes</option></select><button className="request-accept" disabled={busy === request.id} onClick={() => schedule(request.id)}><CalendarDays size={15}/> Schedule</button><button className="request-decline" onClick={() => {setScheduleFor(null);setScheduleAt('');setDurationMinutes(60)}}>Cancel</button></div> : <button className="request-accept" onClick={() => setScheduleFor(request.id)}><CalendarDays size={15}/> Schedule</button>}</>}
+          </div></div>
+        </article>;
+      })}
+    </div>}
+  </div>;
 }

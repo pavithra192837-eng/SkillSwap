@@ -360,6 +360,33 @@ const getMe = async (req, res) => {
   }
 };
 
+
+// ========================================
+// CHANGE PASSWORD
+// PUT /api/auth/password
+// ========================================
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Current password and new password are required" });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ success: false, message: "New password must contain at least 8 characters" });
+    }
+    const [users] = await pool.query("SELECT password_hash FROM users WHERE id = ?", [req.user.id]);
+    if (!users.length) return res.status(404).json({ success: false, message: "User not found" });
+    const valid = await bcrypt.compare(currentPassword, users[0].password_hash);
+    if (!valid) return res.status(401).json({ success: false, message: "Current password is incorrect" });
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [passwordHash, req.user.id]);
+    return res.status(200).json({ success: true, message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Change password error:", error.message);
+    return res.status(500).json({ success: false, message: "Could not update password" });
+  }
+};
+
 // ========================================
 // LOGOUT
 // POST /api/auth/logout
@@ -391,5 +418,6 @@ module.exports = {
   login,
   getMe,
   logout,
+  changePassword,
 };
 

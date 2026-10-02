@@ -1,0 +1,457 @@
+/* SkillSwap global dark environment: every route uses the same visual system. */
+:root {
+  color-scheme: dark;
+  --dark-bg: #02050b;
+  --dark-bg-2: #050b14;
+  --dark-panel: #091321;
+  --dark-panel-2: #0c1828;
+  --dark-panel-3: #101d2f;
+  --dark-line: #1b2d43;
+  --dark-line-soft: rgba(148,163,184,.14);
+  --dark-text: #edf4ff;
+  --dark-muted: #8194ab;
+  --dark-subtle: #637892;
+}
+
+html, body, #root { background: var(--dark-bg) !important; color: var(--dark-text); }
+body { color-scheme: dark; }
+
+/* Public pages */
+.home-page,
+.explore-page,
+.matches-page,
+.peer-page,
+.profile-page,
+.sessions-page,
+.skill-page,
+.learning-page,
+.settings-page {
+  background: var(--dark-bg) !important;
+  color: var(--dark-text) !important;
+}
+
+/* Home / landing: eliminate remaining white sections/cards. */
+.home-live,
+.home-catalog,
+.home-cta { background: #03070e !important; color: var(--dark-text) !important; }
+.home-skill-grid article,
+.flow-tabs button,
+.category-row button,
+.home-skill-grid article > button {
+  background: #080f19 !important;
+  border-color: var(--dark-line) !important;
+  color: #dce7f5 !important;
+}
+.home-skill-grid article:hover,
+.flow-tabs button:hover { background: #0d1827 !important; }
+.flow-tabs button.active { background: #0d1b2d !important; border-color: #41699e !important; }
+.home-skill-grid article span,
+.home-skill-grid article p,
+.section-heading p { color: var(--dark-muted) !important; }
+.home-skill-grid h3,
+.section-heading h2 { color: var(--dark-text) !important; }
+.skill-letter { background: #10233d !important; color: #77a9ff !important; }
+.home-cta { border-color: var(--dark-line) !important; }
+.home-cta p { color: var(--dark-muted) !important; }
+.home-cta h2 { color: var(--dark-text) !important; }
+
+/* Explore */
+.explore-page { background: radial-gradient(circle at 80% 0%, rgba(80,120,255,.08), transparent 28%), var(--dark-bg) !important; }
+.explore-back { color: #8a9db4 !important; }
+.explore-hero h1,
+.explore-hero p { color: var(--dark-text) !important; }
+.explore-hero p { color: var(--dark-muted) !important; }
+.explore-toolbar,
+.explore-search,
+.explore-catalog-stat,
+.explore-skill-card,
+.explore-bottom-card,
+.explore-empty {
+  background: var(--dark-panel) !important;
+  border-color: var(--dark-line) !important;
+  color: var(--dark-text) !important;
+}
+.explore-search input { background: transparent !important; color: var(--dark-text) !important; }
+.explore-search input::placeholder { color: #60748c !important; }
+.explore-skill-card:hover { background: var(--dark-panel-2) !important; border-color: #31527a !important; }
+.explore-skill-card p,
+.explore-skill-card small,
+.explore-catalog-stat span,
+.explore-empty p { color: var(--dark-muted) !important; }
+.explore-skill-icon { background: #10233d !important; color: #78a9ff !important; }
+.explore-categories button { background: #091321 !important; border-color: var(--dark-line) !important; color: #9eb0c5 !important; }
+.explore-categories button.active,
+.explore-categories button:hover { background: #132844 !important; color: #dce9ff !important; border-color: #3b6090 !important; }
+.explore-skill-actions button { background: #142845 !important; color: #cfe0ff !important; border-color: #29476a !important; }
+
+/* Matches */
+.matches-page { background: radial-gradient(circle at 80% 0%, rgba(91,140,255,.07), transparent 26%), var(--dark-bg) !important; }
+.matches-header h1,
+.matches-header p { color: var(--dark-text) !important; }
+.matches-header p { color: var(--dark-muted) !important; }
+.matches-toolbar,
+.match-card,
+.matches-empty,
+.matches-alert {
+  background: var(--dark-panel) !important;
+  border-color: var(--dark-line) !important;
+  color: var(--dark-text) !important;
+}
+.match-card:hover { background: var(--dark-panel-2) !important; border-color: #31527a !important; }
+.match-person span,
+.match-bio,
+.match-rating,
+.matches-count { color: var(--dark-muted) !important; }
+.match-exchange { background: #08111e !important; border-color: #1b3048 !important; }
+.match-actions a,
+.match-actions button { background: #12243a !important; border-color: #294564 !important; color: #dbe8f7 !important; }
+.match-avatar { background: linear-gradient(135deg,#2b88ff,#725cff) !important; color: #fff !important; }
+
+/* Peer profile */
+.peer-page { background: radial-gradient(circle at 75% 0%, rgba(92,125,255,.08), transparent 28%), var(--dark-bg) !important; }
+.peer-hero,
+.peer-panel,
+.peer-request,
+.peer-exchange-preview,
+.peer-reviews,
+.peer-empty,
+.peer-loading {
+  background: var(--dark-panel) !important;
+  border-color: var(--dark-line) !important;
+  color: var(--dark-text) !important;
+}
+.peer-hero h1,
+.peer-section-title { color: var(--dark-text) !important; }
+.peer-hero p,
+.peer-meta,
+.peer-skill-list span,
+.peer-reviews p,
+.peer-empty p,
+.peer-loading { color: var(--dark-muted) !important; }
+.peer-skill-list li,
+.peer-review-grid article { background: #0b1726 !important; border-color: var(--dark-line) !important; }
+.peer-alert { background: rgba(255,91,113,.08) !important; border-color: rgba(255,91,113,.2) !important; color: #ffadb8 !important; }
+.peer-avatar,
+.peer-review-avatar { background: linear-gradient(135deg,#2b88ff,#725cff) !important; color: #fff !important; }
+
+/* Profile */
+.profile-page { background: radial-gradient(circle at 80% 0%, rgba(91,140,255,.07), transparent 26%), var(--dark-bg) !important; }
+.profile-hero,
+.profile-panel,
+.profile-edit-card,
+.profile-empty,
+.profile-loading,
+.profile-info-list,
+.review-list article {
+  background: var(--dark-panel) !important;
+  border-color: var(--dark-line) !important;
+  color: var(--dark-text) !important;
+}
+.profile-identity h1,
+.panel-title,
+.profile-panel h2 { color: var(--dark-text) !important; }
+.profile-meta,
+.profile-bio,
+.profile-info-list span,
+.profile-empty p,
+.profile-loading { color: var(--dark-muted) !important; }
+.profile-skill-grid,
+.profile-skill { background: #0b1726 !important; border-color: var(--dark-line) !important; }
+.profile-skill.learn,
+.profile-skill.teach { background: #0c1b2c !important; }
+.skill-meter { background: #17283d !important; }
+.profile-alert { background: rgba(255,91,113,.08) !important; color: #ffadb8 !important; border-color: rgba(255,91,113,.2) !important; }
+.profile-success { background: rgba(57,214,138,.08) !important; color: #78e7ae !important; border-color: rgba(57,214,138,.2) !important; }
+.profile-edit input,
+.profile-edit textarea,
+.profile-edit select { background: #081321 !important; color: var(--dark-text) !important; border-color: #29415e !important; }
+
+/* Sessions */
+.sessions-page { background: radial-gradient(circle at 80% 0%, rgba(91,140,255,.07), transparent 28%), var(--dark-bg) !important; }
+.sessions-header h1,
+.sessions-header p { color: var(--dark-text) !important; }
+.sessions-header p { color: var(--dark-muted) !important; }
+.session-card,
+.empty-sessions,
+.session-tabs,
+.session-toolbar,
+.session-alert,
+.rating-modal {
+  background: var(--dark-panel) !important;
+  border-color: var(--dark-line) !important;
+  color: var(--dark-text) !important;
+}
+.session-card:hover { background: var(--dark-panel-2) !important; }
+.session-info-grid,
+.session-partner { background: #0a1625 !important; border-color: var(--dark-line) !important; }
+.session-info-grid span,
+.rating-caption { color: var(--dark-muted) !important; }
+.session-tabs button { background: transparent !important; color: #7f93aa !important; }
+.session-tabs button.active { background: #152944 !important; color: #e8f1ff !important; }
+.join-button,
+.rate-button { background: #477cf1 !important; color: #fff !important; }
+.cancel-button { background: #172536 !important; color: #ffabb5 !important; border-color: #33465e !important; }
+.rating-modal-backdrop { background: rgba(0,0,0,.78) !important; }
+.rating-modal { box-shadow: 0 30px 100px rgba(0,0,0,.6) !important; }
+
+/* Skill setup — this was the main remaining light page. */
+.skill-page { background: radial-gradient(circle at 80% 0%, rgba(91,140,255,.09), transparent 30%), var(--dark-bg) !important; color: var(--dark-text) !important; }
+.skill-back { color: #8a9db4 !important; }
+.skill-hero h1 { color: var(--dark-text) !important; }
+.skill-hero p { color: var(--dark-muted) !important; }
+.skill-progress b { background: #0b1726 !important; border-color: var(--dark-line) !important; color: #9db0c7 !important; }
+.skill-progress i { background: #1b2d43 !important; }
+.skill-mode-tabs button,
+.skill-catalog-panel,
+.skill-plan-panel,
+.skill-alert,
+.plan-card,
+.catalog-item {
+  background: var(--dark-panel) !important;
+  border-color: var(--dark-line) !important;
+  color: var(--dark-text) !important;
+}
+.skill-mode-tabs button:hover,
+.catalog-item:hover { background: var(--dark-panel-2) !important; }
+.skill-mode-tabs button.active { background: #0d1d31 !important; border-color: #3d6395 !important; }
+.mode-icon,
+.skill-mode-tabs b,
+.catalog-icon,
+.plan-ring,
+.plan-empty-icon { background: #10233d !important; color: #78a9ff !important; }
+.skill-mode-tabs small,
+.panel-heading p,
+.catalog-copy small,
+.catalog-copy p,
+.plan-card-top span,
+.level-label,
+.level-options small,
+.skill-save-note,
+.plan-empty p,
+.skill-empty p { color: var(--dark-muted) !important; }
+.skill-filters label,
+.skill-filters select,
+.skill-filters input { background: #081321 !important; color: var(--dark-text) !important; border-color: #263c56 !important; }
+.skill-filters input::placeholder { color: #60748b !important; }
+.catalog-item.selected { background: #0d1c2d !important; }
+.catalog-item > button { background: #132b49 !important; color: #9ec1ff !important; }
+.selected-pill { background: rgba(57,214,138,.1) !important; color: #70e3a7 !important; }
+.plan-card { background: #0b1726 !important; }
+.plan-card-top button,
+.level-options button { background: #0a1624 !important; border-color: #263b55 !important; color: #d8e5f4 !important; }
+.level-options button.active { background: #102641 !important; border-color: #4775ad !important; }
+.level-options strong { color: #dbe7f4 !important; }
+.level-options i { background: #1a2a3e !important; }
+.skill-guidance { background: linear-gradient(135deg,#071321,#0b1a2b) !important; }
+.skill-empty { color: var(--dark-muted) !important; }
+.skill-alert.error { background: rgba(255,91,113,.08) !important; color: #ffadb8 !important; border-color: rgba(255,91,113,.2) !important; }
+.skill-alert.success { background: rgba(57,214,138,.08) !important; color: #70e3a7 !important; border-color: rgba(57,214,138,.2) !important; }
+
+/* Forms and controls across every route. */
+input, textarea, select {
+  color-scheme: dark;
+}
+input::placeholder, textarea::placeholder { color: #5f738b; }
+
+/* Prevent browser autofill from turning dark inputs white/yellow. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #edf4ff !important;
+  -webkit-box-shadow: 0 0 0 1000px #081321 inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+/* Back buttons and generic empty/loading states. */
+.explore-back,.matches-back,.peer-back,.profile-back,.sessions-back-button { color: #8a9db4 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; }
+}
+
+/* ===== FINAL DARK DESIGN SYSTEM =====
+   All application surfaces intentionally use the same dark palette.
+   These overrides fix legacy light-page styles without changing functionality. */
+:root{
+  --surface-0:#02040a;
+  --surface-1:#07101c;
+  --surface-2:#0b1624;
+  --surface-3:#0f1d2e;
+  --surface-4:#13243a;
+  --border-dark:#1a2d43;
+  --text-primary:#f3f7ff;
+  --text-secondary:#a9bad0;
+  --text-muted:#71859d;
+  --accent:#5f8dff;
+  --accent-2:#31c7ff;
+}
+
+body{background:var(--surface-0)!important;color:var(--text-primary)!important}
+
+/* Legacy light page roots */
+.home-page,.explore-page,.matches-page,.peer-page,.profile-page,.skill-page,.sessions-page{
+  background:
+    radial-gradient(circle at 80% 0%,rgba(78,118,255,.10),transparent 28%),
+    radial-gradient(circle at 0% 90%,rgba(34,211,238,.045),transparent 25%),
+    var(--surface-0)!important;
+  color:var(--text-primary)!important;
+}
+
+/* Explore */
+.explore-categories button,.explore-search,.explore-skill-card,.explore-empty{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.explore-categories button{color:var(--text-secondary)!important}
+.explore-categories button:hover,.explore-categories button.active{background:#122643!important;color:#8eb4ff!important;border-color:#31558b!important}
+.explore-search input{color:var(--text-primary)!important}
+.explore-search input::placeholder{color:#61758e!important}
+.explore-skill-card p,.explore-toolbar>span,.explore-skill-top span{color:var(--text-muted)!important}
+.explore-skill-icon{background:#122846!important;color:#72a0ff!important}
+.explore-skill-actions button:first-child{background:#122846!important;color:#8eb4ff!important}
+.explore-skill-actions button:last-child{background:#10352e!important;color:#5fe0b6!important}
+.explore-empty h3{color:var(--text-primary)!important}
+
+/* Matches */
+.matches-toolbar>div,.match-card,.matches-empty{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.matches-toolbar input{background:transparent!important;color:var(--text-primary)!important}
+.matches-toolbar input::placeholder{color:#60758e!important}
+.matches-header p,.match-person p,.match-bio{color:var(--text-secondary)!important}
+.match-exchange{background:#091522!important;border-color:#16283d!important}
+.match-exchange>div{background:#0d1b2b!important;border-color:#1b3048!important}
+.match-exchange span{color:#7288a1!important}
+.matches-empty{color:var(--text-secondary)!important}
+.matches-empty h3{color:var(--text-primary)!important}
+
+/* Peer profile — the page shown in the screenshot */
+.peer-panel,.peer-request,.peer-reviews{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.peer-panel h2,.peer-request-heading h2,.peer-section-title h2{color:var(--text-primary)!important}
+.peer-panel p{color:var(--text-secondary)!important}
+.peer-skill-list button,.peer-exchange-preview div,.peer-review-grid article{
+  background:var(--surface-3)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.peer-skill-list button:hover{background:#12243a!important;border-color:#31558b!important}
+.peer-skill-list button.selected{background:#102846!important;border-color:#3d72c9!important}
+.learn-panel .peer-skill-list button.selected{background:#0e2d27!important;border-color:#287c64!important}
+.peer-skill-list button>div strong,.peer-exchange-preview strong,.peer-review-grid strong{color:var(--text-primary)!important}
+.peer-skill-list button>div small,.peer-exchange-preview small,.peer-review-grid small{color:var(--text-muted)!important}
+.peer-exchange-preview{background:#081421!important}
+.peer-request textarea{background:#091522!important;color:var(--text-primary)!important;border-color:#29405a!important}
+.peer-request textarea::placeholder{color:#647992!important}
+.peer-empty{background:#081421!important;border-color:#29405a!important;color:var(--text-secondary)!important}
+.peer-review-grid article{background:#0a1725!important}
+
+/* Profile */
+.profile-metrics>div,.profile-panel,.profile-edit-card{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.profile-metrics strong,.panel-title h2,.profile-info-list strong,.profile-skill>div:first-child strong,.edit-header h2{color:var(--text-primary)!important}
+.profile-metrics p,.profile-metrics small,.profile-bio,.profile-info-list>div,.profile-info-list span,.profile-skill>div:first-child span,.review-list p{color:var(--text-secondary)!important}
+.profile-skill{background:#0d1b2a!important;border-color:var(--border-dark)!important}
+.profile-skill.teach{background:#0d1f32!important}
+.profile-skill.learn{background:#0d241f!important}
+.profile-skill>b{background:#17283b!important;color:#c2d1e3!important}
+.skill-meter,.completion-bar{background:#1a2c40!important}
+.profile-empty{background:#081421!important;border-color:#29405a!important;color:var(--text-secondary)!important}
+.profile-info-list strong{color:var(--text-primary)!important}
+.profile-actions-panel a{background:#0d1b2a!important;color:#dce8f7!important}
+.review-list article{border-color:#1b2d42!important}
+.review-avatar{background:#122846!important;color:#80aaff!important}
+.profile-edit-card label{color:#b9c8da!important}
+.profile-edit-card input,.profile-edit-card textarea{background:#091522!important;color:var(--text-primary)!important;border-color:#29405a!important}
+.profile-edit-card input::placeholder,.profile-edit-card textarea::placeholder{color:#637993!important}
+.edit-actions button:first-child{background:#17283a!important;color:#c5d3e4!important}
+
+/* Skill setup */
+.skill-mode-tabs button,.skill-catalog-panel,.skill-plan-panel{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.skill-mode-tabs button.active{background:#102544!important;border-color:#355e9d!important}
+.mode-icon,.skill-mode-tabs button b,.plan-ring,.catalog-icon{background:#122846!important;color:#83aaff!important}
+.skill-mode-tabs small,.panel-heading p,.panel-heading>strong,.skill-filters label,.skill-save-note,.level-label,.skill-guidance p{color:var(--text-muted)!important}
+.skill-filters label,.skill-filters select,.catalog-item,.plan-card,.level-options button{
+  background:var(--surface-3)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.skill-filters input,.skill-filters select{color:var(--text-primary)!important;background:transparent!important}
+.skill-filters input::placeholder{color:#60758e!important}
+.catalog-item:hover,.catalog-item.highlight{background:#10223a!important;border-color:#31588f!important}
+.catalog-copy small,.catalog-copy p,.level-options small{color:var(--text-muted)!important}
+.catalog-item>button{background:#122846!important;color:#88adff!important}
+.selected-pill{background:#10352e!important;color:#63dfb7!important}
+.plan-card-top span{color:var(--text-muted)!important}
+.plan-card-top button{background:#17283a!important;border-color:#29405a!important;color:#b5c6d9!important}
+.level-options button.active{background:#102846!important;border-color:#3969a8!important}
+.level-options strong{color:#dce8f6!important}
+.level-options i{background:#1c3046!important}
+.plan-empty{background:#081421!important;color:var(--text-secondary)!important}
+.plan-empty h3,.skill-empty h3{color:var(--text-primary)!important}
+.skill-progress b{background:#102033!important;border-color:#29405a!important;color:#b9cbe0!important}
+.skill-progress i{background:#1c3045!important}
+.skill-alert.error{background:#321923!important;color:#ffabb8!important;border-color:#713344!important}
+.skill-alert.success{background:#0d2d27!important;color:#68ddb9!important;border-color:#236b59!important}
+
+/* Learning journey modal */
+.level-modal{background:#0b1726!important;color:var(--text-primary)!important;border:1px solid var(--border-dark)!important}
+.level-modal-close{background:#17283a!important;color:#b9c9db!important}
+.level-modal>p{color:var(--text-secondary)!important}
+.journey-level-options button{background:#0e1c2b!important;border-color:#29405a!important;color:var(--text-primary)!important}
+.journey-level-options button.active{background:#102846!important;border-color:#3969a8!important}
+.journey-level-options span{color:var(--text-muted)!important}
+
+/* Common native controls / autofill */
+input,textarea,select{color-scheme:dark}
+input:-webkit-autofill,textarea:-webkit-autofill,select:-webkit-autofill{
+  -webkit-text-fill-color:#f3f7ff!important;
+  -webkit-box-shadow:0 0 0 1000px #091522 inset!important;
+  transition:background-color 9999s ease-out 0s;
+}
+
+/* Home sections that still carried the legacy light palette */
+.home-live,.home-catalog{background:#02040a!important;color:var(--text-primary)!important}
+.flow-tabs button,.home-skill-grid article,.home-skill-grid article>button{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.flow-tabs button:hover{background:#10223a!important;border-color:#31588f!important}
+.flow-tabs button.active{background:#102846!important;border-color:#3969a8!important}
+.flow-tabs button>span{background:#17283a!important;color:#9eb3cb!important}
+.flow-tabs button.active>span{background:#3d78eb!important;color:#fff!important}
+.flow-tabs small,.home-skill-grid article span,.home-skill-grid p,.section-heading p{color:var(--text-muted)!important}
+.skill-letter{background:#122846!important;color:#86acff!important}
+.category-row button{background:#0d1b2a!important;border-color:#1e334a!important;color:#9db0c6!important}
+.category-row button:hover{background:#122846!important;border-color:#31558f!important;color:#8eb4ff!important}
+.home-cta{border-color:#1d3651!important;background:linear-gradient(135deg,#0a1726,#0e1f32)!important;color:var(--text-primary)!important}
+.home-cta p{color:var(--text-secondary)!important}
+
+/* Sessions list */
+.sessions-page{color:var(--text-primary)!important}
+.sessions-page .session-card,.sessions-page .session-empty,.sessions-page .session-filter,.sessions-page .session-summary-card{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.sessions-page input,.sessions-page select,.sessions-page textarea{background:#091522!important;color:var(--text-primary)!important;border-color:#29405a!important}
+.sessions-page input::placeholder,.sessions-page textarea::placeholder{color:#61758d!important}
+.sessions-page .muted,.sessions-page small,.sessions-page p{color:var(--text-secondary)!important}
+
+/* Sessions legacy light controls/cards */
+.session-tabs,.session-refresh,.session-card,.empty-sessions{
+  background:var(--surface-2)!important;border-color:var(--border-dark)!important;color:var(--text-primary)!important;
+}
+.session-tabs button{color:#8ea2ba!important}
+.session-tabs button.active{background:#122846!important;color:#e7f0ff!important}
+.session-refresh{color:#c1d0e0!important}
+.empty-sessions{color:var(--text-secondary)!important}
+.session-alert{background:#321923!important;color:#ffabb8!important;border-color:#713344!important}
+.cancel-button{background:#321923!important;color:#ffabb8!important}
+.rate-button{background:#38280e!important;color:#ffc66b!important}
+.rated-badge{background:#352b0b!important;color:#ffd36e!important}
+.rating-modal{background:#0b1726!important;color:var(--text-primary)!important;border:1px solid var(--border-dark)!important}
+.rating-icon{background:#352b0b!important}
+.rating-modal input,.rating-modal textarea{background:#091522!important;color:var(--text-primary)!important;border-color:#29405a!important}
+.rating-modal input::placeholder,.rating-modal textarea::placeholder{color:#61758d!important}
+
+/* Keep native Windows/Chromium menus dark anywhere a select remains. */
+select,select:focus,select:hover{color-scheme:dark;background:#091522!important;color:#edf4ff!important}select option,select optgroup{background:#091522!important;color:#edf4ff!important}select option:checked,select option:hover{background:#173052!important;color:#fff!important}

@@ -1,184 +1,70 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import api, { getErrorMessage } from "../api";
-import { useAuth } from "../context/AuthContext";
-import "./Profile.css";
+import { useEffect, useMemo, useState } from 'react';
+import { BookOpen, CheckCircle2, Edit3, GraduationCap, Mail, MessageCircle, School, Star, Trophy, UserRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import api, { getErrorMessage } from '../api';
+import { useAuth } from '../context/AuthContext';
+import './Profile.css';
 
-const emptyProfile = {
-  id: null,
-  name: "",
-  email: "",
-  phone: "",
-  college: "",
-  roll_no: "",
-  department: "",
-  bio: "",
-  profile_image: "",
-  teachSkills: [],
-  learnSkills: [],
-  reputation: { rating: 0, completed_sessions: 0, points: 0 },
-};
+const initials = (name = 'Student') => name.split(/\s+/).filter(Boolean).map(x => x[0]).join('').slice(0, 2).toUpperCase() || 'S';
+const levelLabel = v => v === 'ADVANCED' ? 'PROFICIENT' : v || 'BEGINNER';
 
-function initials(name = "User") {
-  return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "U";
-}
-
-function levelLabel(level) {
-  return level === "ADVANCED" ? "PROFICIENT" : level || "BEGINNER";
-}
+function Stars({ value = 0, size = 15 }) { return <span className="profile-stars" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n => <Star key={n} size={size} fill={value >= n ? 'currentColor' : 'none'} />)}</span>; }
 
 export default function Profile() {
   const { user, setUser } = useAuth();
-  const [profile, setProfile] = useState(emptyProfile);
-  const [editData, setEditData] = useState(emptyProfile);
+  const [profile, setProfile] = useState(null);
+  const [ratings, setRatings] = useState([]);
+  const [ratingSummary, setRatingSummary] = useState({ average_rating: 0, total_ratings: 0 });
   const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState("");
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState('');
+  const [learningHistory, setLearningHistory] = useState([]);
 
   const load = async () => {
     try {
-      setError("");
-      const [profileRes, skillsRes] = await Promise.all([
-        api.get("/users/me"),
-        api.get("/users/me/skills"),
-      ]);
-      const u = profileRes.data.user || {};
-      const skills = skillsRes.data.skills || skillsRes.data.userSkills || [];
-      const next = {
-        ...emptyProfile,
-        ...u,
-        teachSkills: skills.filter((s) => s.type === "TEACH"),
-        learnSkills: skills.filter((s) => s.type === "LEARN"),
-        reputation: u.reputation || { rating: 0, completed_sessions: 0, points: 0 },
-      };
-      setProfile(next);
-      setEditData(next);
-      setUser?.((previous) => ({ ...previous, ...u }));
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not load your profile."));
-    } finally {
-      setLoading(false);
-    }
+      setError('');
+      const [p, s, r, learning] = await Promise.all([api.get('/users/me'), api.get('/users/me/skills'), api.get(`/users/${user?.id}/ratings`), api.get('/learning')]);
+      const next = { ...(p.data.user || {}), teachSkills: s.data.teach || [], learnSkills: s.data.learn || [] };
+      setProfile(next); setEditData(next); setRatings(r.data.ratings || []); setRatingSummary(r.data.summary || { average_rating: 0, total_ratings: 0 }); setLearningHistory(learning.data.progress || []); setUser?.(old => ({ ...(old || {}), ...(p.data.user || {}) }));
+    } catch (e) { setError(getErrorMessage(e, 'Could not load your profile.')); }
+    finally { setLoading(false); }
   };
+  useEffect(() => { load(); const timer = setInterval(load, 12000); return () => clearInterval(timer); }, [user?.id]);
 
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 10000);
-    return () => clearInterval(timer);
-  }, []);
+  const completion = useMemo(() => { if (!profile) return 0; const values = [profile.name, profile.email, profile.college, profile.roll_no, profile.department, profile.bio, profile.teachSkills?.length, profile.learnSkills?.length, learningHistory.length]; return Math.round(values.filter(Boolean).length / values.length * 100); }, [profile]);
+  const update = (key, value) => { setEditData(x => ({ ...x, [key]: value })); setSaved(''); };
+  const save = async e => { e.preventDefault(); if (!editData.name?.trim()) return setError('Name is required.'); try { setSaving(true); const r = await api.put('/users/me', { name: editData.name.trim(), phone: editData.phone?.trim() || null, college: editData.college?.trim() || null, roll_no: editData.roll_no?.trim() || null, department: editData.department?.trim() || null, bio: editData.bio?.trim() || null }); setProfile(p => ({ ...p, ...r.data.user })); setEditData(p => ({ ...p, ...r.data.user })); setUser?.(old => ({ ...(old || {}), ...(r.data.user || {}) })); setEditMode(false); setSaved('Profile saved successfully.'); } catch (e) { setError(getErrorMessage(e, 'Could not save your profile.')); } finally { setSaving(false); } };
 
-  const completion = useMemo(() => {
-    const checks = [profile.name, profile.email, profile.college, profile.roll_no, profile.department, profile.bio, profile.teachSkills.length, profile.learnSkills.length];
-    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [profile]);
-
-  const updateField = (name, value) => {
-    setEditData((current) => ({ ...current, [name]: value }));
-    setSaved("");
-  };
-
-  const save = async (event) => {
-    event.preventDefault();
-    if (!editData.name.trim()) return setError("Name is required.");
-    try {
-      setSaving(true);
-      setError("");
-      const response = await api.put("/users/me", {
-        name: editData.name.trim(),
-        phone: editData.phone?.trim() || null,
-        college: editData.college?.trim() || null,
-        roll_no: editData.roll_no?.trim() || null,
-        department: editData.department?.trim() || null,
-        bio: editData.bio?.trim() || null,
-      });
-      const updated = { ...profile, ...response.data.user };
-      setProfile(updated);
-      setEditData(updated);
-      setUser?.((previous) => ({ ...previous, ...response.data.user }));
-      setEditMode(false);
-      setSaved("Profile updated successfully");
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not save your profile."));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) return <main className="profile-page"><div className="profile-container"><div className="profile-card"><h3>Loading your profile…</h3></div></div></main>;
-
-  const rating = Number(profile.reputation?.rating || 0);
+  if (loading) return <main className="profile-page"><div className="profile-shell"><div className="profile-loading">Loading your profile…</div></div></main>;
+  if (!profile) return <main className="profile-page"><div className="profile-shell"><div className="profile-alert">{error || 'Profile unavailable.'}</div></div></main>;
+  const average = Number(ratingSummary.average_rating || profile.reputation?.rating || 0);
   const completed = Number(profile.reputation?.completed_sessions || 0);
+  const learnedSkills = learningHistory.filter(item => item.status === 'ADDED_TO_PROFILE');
 
-  return (
-    <main className="profile-page">
-      <div className="profile-container">
-        <div className="profile-page-header">
-          <div>
-            <Link to="/dashboard" className="profile-back">← Back to Dashboard</Link>
-            <p className="profile-label">MY PROFILE</p>
-            <h1>Your Profile</h1>
-            <p className="profile-subtitle">Your profile is loaded from your account and database.</p>
-          </div>
-          {!editMode && <button className="edit-profile-button" onClick={() => { setEditData(profile); setEditMode(true); }}>Edit Profile</button>}
-        </div>
+  return <main className="profile-page"><div className="profile-shell">
+    <Link to="/dashboard" className="profile-back">← Back to Dashboard</Link>
+    {error && <div className="profile-alert">{error}</div>}{saved && <div className="profile-success">{saved}</div>}
+    <section className="profile-hero"><div className="profile-avatar">{initials(profile.name)}</div><div className="profile-identity"><span className="profile-kicker">SKILLSWAP MEMBER</span><h1>{profile.name}</h1><p>{profile.department || 'Student'}{profile.college ? ` · ${profile.college}` : ''}</p><div className="profile-meta"><span><Mail size={14}/>{profile.email}</span><span><School size={14}/>{profile.college || 'College not added'}</span></div></div><button className="profile-edit" onClick={() => setEditMode(true)}><Edit3 size={15}/> Edit profile</button></section>
 
-        {error && <div className="profile-card" style={{ marginBottom: 16 }}><p className="profile-error">{error}</p></div>}
-        {saved && <div className="profile-card" style={{ marginBottom: 16 }}><p>{saved}</p></div>}
+    <section className="profile-metrics"><div><span>REPUTATION</span><strong>{average ? average.toFixed(1) : 'New'}</strong><div>{average ? <Stars value={average} /> : <small>No ratings yet</small>}<small>{ratingSummary.total_ratings} rating{ratingSummary.total_ratings === 1 ? '' : 's'}</small></div></div><div><span>COMPLETED SESSIONS</span><strong>{completed}</strong><p><CheckCircle2 size={14}/> Exchanges completed</p></div><div><span>PROFILE COMPLETION</span><strong>{completion}%</strong><div className="completion-bar"><i style={{ width: `${completion}%` }}/></div></div><div><span>SKILL FOOTPRINT</span><strong>{profile.teachSkills.length + profile.learnSkills.length + learnedSkills.length}</strong><p><Trophy size={14}/> {profile.teachSkills.length} teach · {profile.learnSkills.length} goals · {learnedSkills.length} learned</p></div></section>
 
-        {editMode ? (
-          <form className="profile-edit-card" onSubmit={save}>
-            <div className="edit-card-header"><div><p className="profile-label">EDIT PROFILE</p><h2>Update your real account details</h2></div></div>
-            <div className="edit-form-grid">
-              <div className="edit-form-group"><label>Name</label><input value={editData.name || ""} onChange={(e) => updateField("name", e.target.value)} /></div>
-              <div className="edit-form-group"><label>Email</label><input value={editData.email || ""} disabled /></div>
-              <div className="edit-form-group"><label>College</label><input value={editData.college || ""} onChange={(e) => updateField("college", e.target.value)} /></div>
-              <div className="edit-form-group"><label>Department</label><input value={editData.department || ""} onChange={(e) => updateField("department", e.target.value)} /></div>
-              <div className="edit-form-group"><label>Register Number</label><input value={editData.roll_no || ""} onChange={(e) => updateField("roll_no", e.target.value.replace(/\s/g, ""))} /></div>
-              <div className="edit-form-group"><label>Phone</label><input value={editData.phone || ""} maxLength={10} onChange={(e) => updateField("phone", e.target.value.replace(/\D/g, "").slice(0, 10))} /></div>
-            </div>
-            <div className="edit-form-group"><label>About Me</label><textarea rows={5} maxLength={500} value={editData.bio || ""} onChange={(e) => updateField("bio", e.target.value)} /><span className="word-counter">{(editData.bio || "").length} / 500 characters</span></div>
-            <div className="edit-form-actions"><button type="button" className="cancel-profile-button" onClick={() => setEditMode(false)}>Cancel</button><button type="submit" className="save-profile-button" disabled={saving}>{saving ? "Saving…" : "✓ Save Changes"}</button></div>
-          </form>
-        ) : (
-          <>
-            <section className="profile-hero-card">
-              <div className="profile-avatar">{initials(profile.name)}</div>
-              <div className="profile-main-info">
-                <div className="profile-name-row"><div><h2>{profile.name || "Student"}</h2><p className="profile-role">{profile.department || "Student"}</p></div><span className="profile-status">● Active</span></div>
-                <div className="profile-details"><span>🎓 {profile.college || "College not added"}</span><span>💻 {profile.department || "Department not added"}</span></div>
-              </div>
-            </section>
-
-            <section className="profile-stats">
-              <div className="profile-stat-card"><div className="stat-icon">⚡</div><div><span>Skills</span><strong>{profile.teachSkills.length + profile.learnSkills.length}</strong></div></div>
-              <div className="profile-stat-card"><div className="stat-icon">🔄</div><div><span>Completed exchanges</span><strong>{completed}</strong></div></div>
-              <div className="profile-stat-card"><div className="stat-icon">⭐</div><div><span>Rating</span><strong>{rating ? rating.toFixed(1) : "New"}</strong></div></div>
-            </section>
-
-            <div className="profile-content-grid">
-              <div className="profile-left-column">
-                <section className="profile-card"><div className="profile-card-header"><div><p className="card-label">ABOUT</p><h3>About Me</h3></div></div><p className="about-text">{profile.bio || "Add a short introduction so other students know what you enjoy teaching and learning."}</p></section>
-                <section className="profile-card"><div className="profile-card-header"><div><p className="card-label">SHARING</p><h3>Skills I Can Teach</h3></div><span className="skill-count">{profile.teachSkills.length} skills</span></div><div className="skill-tags">{profile.teachSkills.length ? profile.teachSkills.map((s) => <span className="skill-tag teach" key={s.id}>{s.name} · {levelLabel(s.level)}</span>) : <span>No teaching skills added yet.</span>}</div></section>
-                <section className="profile-card"><div className="profile-card-header"><div><p className="card-label">LEARNING</p><h3>Skills I Want to Learn</h3></div><span className="skill-count">{profile.learnSkills.length} skills</span></div><div className="skill-tags">{profile.learnSkills.length ? profile.learnSkills.map((s) => <span className="skill-tag learn" key={s.id}>{s.name} · {levelLabel(s.level)}</span>) : <span>No learning skills added yet.</span>}</div></section>
-              </div>
-              <div className="profile-right-column">
-                <section className="profile-card"><div className="profile-card-header"><div><p className="card-label">DETAILS</p><h3>Profile Information</h3></div></div><div className="information-list">
-                  <div className="information-item"><span>Name</span><strong>{profile.name}</strong></div>
-                  <div className="information-item"><span>Email</span><strong>{profile.email || "Not added"}</strong></div>
-                  <div className="information-item"><span>College</span><strong>{profile.college || "Not added"}</strong></div>
-                  <div className="information-item"><span>Department</span><strong>{profile.department || "Not added"}</strong></div>
-                  <div className="information-item"><span>Register Number</span><strong>{profile.roll_no || "Not added"}</strong></div>
-                  <div className="information-item"><span>Phone</span><strong>{profile.phone || "Not added"}</strong></div>
-                </div></section>
-                <section className="profile-card completion-card"><div className="completion-header"><div><p className="card-label">PROFILE</p><h3>Profile Completion</h3></div><strong>{completion}%</strong></div><div className="progress-bar"><div className="progress-fill" style={{ width: `${completion}%` }} /></div><p className="completion-text">Complete your profile to improve matching quality.</p></section>
-                <section className="profile-card"><div className="profile-card-header"><div><p className="card-label">QUICK ACTIONS</p><h3>Explore SkillSwap</h3></div></div><div className="profile-actions"><Link to="/skill-setup" className="profile-action"><span>✦</span><div><strong>Edit skills</strong><small>Update what you teach and learn</small></div></Link><Link to="/matches" className="profile-action"><span>🔎</span><div><strong>Find matches</strong><small>Connect with compatible students</small></div></Link><Link to="/messages" className="profile-action"><span>💬</span><div><strong>Messages</strong><small>Continue your conversations</small></div></Link></div></section>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </main>
-  );
+    {editMode ? <form className="profile-edit-card" onSubmit={save}><div className="edit-header"><div><span className="profile-kicker">EDIT PROFILE</span><h2>Keep your student profile current.</h2></div></div><div className="edit-grid">{[['name','Name'],['email','Email'],['college','College'],['department','Department'],['roll_no','Register number'],['phone','Phone']].map(([key,label]) => <label key={key}>{label}<input disabled={key === 'email'} value={editData[key] || ''} onChange={e => update(key, key === 'phone' ? e.target.value.replace(/\D/g,'').slice(0,10) : e.target.value)}/></label>)}</div><label className="edit-full">About me<textarea maxLength={500} value={editData.bio || ''} onChange={e => update('bio', e.target.value)}/><small>{(editData.bio || '').length}/500</small></label><div className="edit-actions"><button type="button" onClick={() => setEditMode(false)}>Cancel</button><button className="save" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button></div></form> : <>
+      <div className="profile-grid"><div className="profile-main-column">
+        <section className="profile-panel"><div className="panel-title"><div><span>ABOUT</span><h2>About me</h2></div></div><p className="profile-bio">{profile.bio || 'Add a short introduction so students know what you enjoy teaching and learning.'}</p></section>
+        <section className="profile-panel"><div className="panel-title"><div><span>TEACHING</span><h2>Skills I can teach</h2></div><Link to="/skill-setup">Manage skills</Link></div><div className="skill-profile-grid">{profile.teachSkills.length ? profile.teachSkills.map(s => <article key={s.id} className="profile-skill teach"><div><strong>{s.name}</strong><span>{s.category_name || 'Skill'}</span></div><b>{levelLabel(s.level)}</b><div className="skill-meter"><i style={{ width: `${levelLabel(s.level) === 'PROFICIENT' ? 92 : levelLabel(s.level) === 'INTERMEDIATE' ? 66 : 35}%` }}/></div></article>) : <div className="profile-empty">No teaching skills yet. <Link to="/skill-setup">Add your first skill</Link></div>}</div></section>
+        <section className="profile-panel"><div className="panel-title"><div><span>LEARNING</span><h2>Skills I want to learn</h2></div><Link to="/skill-setup">Manage goals</Link></div><div className="skill-profile-grid">{profile.learnSkills.length ? profile.learnSkills.map(s => <article key={s.id} className="profile-skill learn"><div><strong>{s.name}</strong><span>{s.category_name || 'Learning goal'}</span></div><b>{levelLabel(s.level)}</b><div className="skill-meter"><i style={{ width: `${levelLabel(s.level) === 'PROFICIENT' ? 92 : levelLabel(s.level) === 'INTERMEDIATE' ? 66 : 35}%` }}/></div></article>) : <div className="profile-empty">No learning goals yet. <Link to="/skill-setup">Add a learning goal</Link></div>}</div></section>
+        <section className="profile-panel learned-skills-panel"><div className="panel-title"><div><span>LEARNED SKILLS</span><h2>Skills earned through sessions</h2></div><Link to="/learning">View journey</Link></div><p className="profile-bio learned-intro">Every completed learning journey you add to your profile appears here with the level you reached.</p><div className="learned-skill-grid">{learnedSkills.length ? learnedSkills.map(item => <article key={item.id} className="learned-skill-card"><div className="learned-skill-icon"><GraduationCap size={17}/></div><div className="learned-skill-copy"><strong>{item.skill_name}</strong><span>Learned from {item.teacher_name}</span><small>{levelLabel(item.level || 'BEGINNER')} · {item.added_to_profile_at ? new Date(item.added_to_profile_at).toLocaleDateString() : 'Recently added'}</small></div><CheckCircle2 size={17} className="learned-check"/></article>) : <div className="profile-empty learned-empty"><GraduationCap size={19}/><div><strong>No learned skills yet</strong><span>Complete a learning session, confirm what you learned, then add it to your profile.</span></div><Link to="/learning">Open learning journey</Link></div>}</div></section>
+      </div><aside className="profile-side-column">
+        <section className="profile-panel profile-info-panel"><div className="panel-title"><div><span>ACCOUNT</span><h2>Student details</h2></div></div><div className="profile-info-list"><div><UserRound size={15}/><span>Name<strong>{profile.name}</strong></span></div><div><Mail size={15}/><span>Email<strong>{profile.email}</strong></span></div><div><School size={15}/><span>Department<strong>{profile.department || 'Not added'}</strong></span></div><div><BookOpen size={15}/><span>Register number<strong>{profile.roll_no || 'Not added'}</strong></span></div></div></section>
+        <section className="profile-panel"><div className="panel-title"><div><span>RATINGS</span><h2>What students say</h2></div><strong className="rating-big">{average ? average.toFixed(1) : '—'}</strong></div>{ratings.length ? <div className="review-list">{ratings.slice(0,5).map(r => <article key={r.id}><div className="review-head"><div className="review-avatar">{initials(r.reviewer_name)}</div><div><strong>{r.reviewer_name}</strong><span><Stars value={Number(r.rating)} size={12}/>{new Date(r.created_at).toLocaleDateString()}</span></div></div><p>{r.review || 'No written comment was left.'}</p></article>)}</div> : <div className="profile-empty"><Star size={20}/><p>Your first completed exchange can earn your first rating.</p></div>}</section>
+        <section className="profile-panel profile-actions-panel"><Link to="/matches"><UsersRoundIcon/> Find reciprocal matches</Link><Link to="/messages"><MessageCircle size={17}/> Open messages</Link></section>
+      </aside></div>
+    </>}
+    {false && <div />}
+  </div></main>;
 }
+
+function UsersRoundIcon(){ return <span className="fake-users-icon">↔</span>; }

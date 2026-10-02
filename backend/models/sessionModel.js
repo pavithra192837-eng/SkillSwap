@@ -10,6 +10,7 @@ const createSession = async ({
   user2_id,
   scheduled_at,
   meeting_id = null,
+  duration_minutes = 60,
 }) => {
   const [result] = await pool.query(
     `
@@ -19,16 +20,18 @@ const createSession = async ({
         user1_id,
         user2_id,
         scheduled_at,
+        duration_minutes,
         status,
         meeting_id
       )
-      VALUES (?, ?, ?, ?, 'SCHEDULED', ?)
+      VALUES (?, ?, ?, ?, ?, 'SCHEDULED', ?)
     `,
     [
       request_id,
       user1_id,
       user2_id,
       scheduled_at,
+      duration_minutes,
       meeting_id,
     ]
   );
@@ -50,6 +53,11 @@ const findSessionById = async (
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        s.duration_minutes,
+        s.started_at,
+        s.ended_at,
+        s.ended_by,
+        s.end_reason,
         s.status,
         s.meeting_id,
         s.created_at,
@@ -91,6 +99,11 @@ const findSessionsByUserId = async (
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        s.duration_minutes,
+        s.started_at,
+        s.ended_at,
+        s.ended_by,
+        s.end_reason,
         s.status,
         s.meeting_id,
         s.created_at,
@@ -174,6 +187,18 @@ const updateSession = async (
     values.push(
       updates.scheduled_at
     );
+  }
+
+  // ----------------------------------------
+  // Duration
+  // ----------------------------------------
+  if (updates.duration_minutes !== undefined) {
+    const duration = Number(updates.duration_minutes);
+    if (![30, 45, 60, 90].includes(duration)) {
+      throw new Error("Invalid session duration");
+    }
+    fields.push("duration_minutes = ?");
+    values.push(duration);
   }
 
   // ----------------------------------------

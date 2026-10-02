@@ -12,17 +12,26 @@ const createSession = async (req, res) => {
     const {
       request_id,
       scheduled_at,
+      duration_minutes = 60,
       meeting_id,
     } = req.body;
 
     // ------------------------------------
     // Validate required fields
     // ------------------------------------
+    const duration = Number(duration_minutes);
+    const allowedDurations = [30, 45, 60, 90];
     if (!request_id || !scheduled_at) {
       return res.status(400).json({
         success: false,
         message:
           "Request ID and scheduled time are required",
+      });
+    }
+    if (!allowedDurations.includes(duration)) {
+      return res.status(400).json({
+        success: false,
+        message: "Duration must be 30, 45, 60, or 90 minutes.",
       });
     }
 
@@ -106,16 +115,18 @@ const createSession = async (req, res) => {
         user1_id,
         user2_id,
         scheduled_at,
+        duration_minutes,
         status,
         meeting_id
       )
-      VALUES (?, ?, ?, ?, 'SCHEDULED', ?)
+      VALUES (?, ?, ?, ?, ?, 'SCHEDULED', ?)
       `,
       [
         request_id,
         user1Id,
         user2Id,
         scheduled_at,
+        duration,
         meeting_id || null,
       ]
     );
@@ -180,6 +191,9 @@ const createSession = async (req, res) => {
         user1_id: user1Id,
         user2_id: user2Id,
         scheduled_at,
+        duration_minutes: duration,
+        started_at: null,
+        ended_at: null,
         status: "SCHEDULED",
         meeting_id:
           meeting_id || null,
@@ -215,10 +229,20 @@ const getSessions = async (req, res) => {
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        s.duration_minutes,
+        s.started_at,
+        s.ended_at,
+        s.ended_by,
+        s.end_reason,
         s.status,
         s.meeting_id,
         s.created_at,
         s.updated_at,
+
+        (SELECT rating FROM ratings WHERE session_id = s.id AND reviewer_id = ? LIMIT 1) AS my_rating,
+        CASE WHEN EXISTS (SELECT 1 FROM ratings WHERE session_id = s.id AND reviewer_id = ?) THEN 1 ELSE 0 END AS rated_by_me,
+        offered_skill.name AS offered_skill_name,
+        requested_skill.name AS requested_skill_name,
 
         user1.name AS user1_name,
         user1.roll_no AS user1_roll_no,
@@ -234,13 +258,20 @@ const getSessions = async (req, res) => {
       INNER JOIN users user2
         ON s.user2_id = user2.id
 
+      INNER JOIN exchange_requests er
+        ON s.request_id = er.id
+      INNER JOIN skills offered_skill
+        ON er.offered_skill_id = offered_skill.id
+      INNER JOIN skills requested_skill
+        ON er.requested_skill_id = requested_skill.id
+
       WHERE
         s.user1_id = ?
         OR s.user2_id = ?
 
       ORDER BY s.scheduled_at DESC
       `,
-      [userId, userId]
+      [userId, userId, userId, userId]
     );
 
     return res.status(200).json({
@@ -282,6 +313,11 @@ const getSessionById = async (
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        s.duration_minutes,
+        s.started_at,
+        s.ended_at,
+        s.ended_by,
+        s.end_reason,
         s.status,
         s.meeting_id,
         s.created_at,
@@ -353,6 +389,7 @@ const updateSession = async (
 
     const {
       scheduled_at,
+      duration_minutes,
       meeting_id,
     } = req.body;
 
@@ -396,6 +433,18 @@ const updateSession = async (
         "scheduled_at = ?"
       );
       values.push(scheduled_at);
+    }
+
+    // ------------------------------------
+    // Update duration
+    // ------------------------------------
+    if (duration_minutes !== undefined) {
+      const duration = Number(duration_minutes);
+      if (![30, 45, 60, 90].includes(duration)) {
+        return res.status(400).json({ success: false, message: "Duration must be 30, 45, 60, or 90 minutes." });
+      }
+      updates.push("duration_minutes = ?");
+      values.push(duration);
     }
 
     // ------------------------------------
@@ -515,7 +564,7 @@ const startSession = async (
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'ONGOING'
+      SET status = 'ONGOING', started_at = COALESCE(started_at, NOW()), ended_at = NULL, ended_by = NULL, end_reason = NULL
       WHERE id = ?
       `,
       [sessionId]
@@ -579,10 +628,10 @@ const completeSession = async (
     const session = sessions[0];
 
     if (session.status === "COMPLETED") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Session is already completed",
+      return res.status(200).json({
+        success: true,
+        alreadyCompleted: true,
+        message: "Session is already completed",
       });
     }
 
@@ -594,11 +643,22 @@ const completeSession = async (
       });
     }
 
+    const endReason = String(req.body?.reason || 'COMPLETED').slice(0, 50);
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'COMPLETED'
+      SET status = 'COMPLETED', ended_at = NOW(), ended_by = ?, end_reason = ?
       WHERE id = ?
+      `,
+      [userId, endReason, sessionId]
+    );
+
+    // A completed session completes both learning directions.
+    await pool.query(
+      `
+      UPDATE learning_progress
+      SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW())
+      WHERE session_id = ? AND status = 'IN_PROGRESS'
       `,
       [sessionId]
     );

@@ -171,6 +171,12 @@ CREATE TABLE IF NOT EXISTS sessions (
 
     scheduled_at DATETIME NOT NULL,
 
+    duration_minutes INT NOT NULL DEFAULT 60,
+    started_at DATETIME NULL,
+    ended_at DATETIME NULL,
+    ended_by INT NULL,
+    end_reason VARCHAR(50) NULL,
+
     status ENUM(
         'SCHEDULED',
         'ONGOING',
@@ -238,7 +244,7 @@ CREATE TABLE IF NOT EXISTS ratings (
 
     rating TINYINT NOT NULL,
 
-    comment TEXT,
+    review TEXT,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

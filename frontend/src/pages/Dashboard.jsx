@@ -1,20 +1,87 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, Clock3, MessageCircle, Sparkles, UsersRound } from 'lucide-react';
 import api, { getErrorMessage } from '../api';
 import { useAuth } from '../context/AuthContext';
 import './Dashboard.css';
 
+function initials(name = 'Student') { return name.split(/\s+/).filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'S'; }
+function dateText(v) { if (!v) return 'Not scheduled'; const d = new Date(v); return Number.isNaN(d.getTime()) ? v : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
+
 export default function Dashboard() {
-  const { user, logout, setUser } = useAuth(); const navigate = useNavigate();
-  const [data,setData]=useState(null); const [error,setError]=useState(''); const [loading,setLoading]=useState(true); const [sidebarOpen,setSidebarOpen]=useState(false);
-  useEffect(()=>{ const load=()=>api.get('/dashboard').then(r=>{setData(r.data); if(r.data.user)setUser(r.data.user);}).catch(e=>setError(getErrorMessage(e,'Could not load dashboard.'))).finally(()=>setLoading(false)); load(); const timer=setInterval(load,5000); return ()=>clearInterval(timer); },[setUser]);
-  const signOut=async()=>{await logout();navigate('/');};
-  if(loading) return <div className="app-loading">Loading your SkillSwap dashboard…</div>;
-  if(error) return <div className="app-loading"><div><p>{error}</p><button className="primary-submit" onClick={()=>window.location.reload()}>Retry</button></div></div>;
-  const stats=data?.statistics||{}; const skills=data?.skills||[]; const matches=data?.recent_requests||[];
-  const teach=skills.filter(s=>s.type==='TEACH'); const learn=skills.filter(s=>s.type==='LEARN');
-  const initials=(user?.name||'U').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
-  return <main className="dashboard-page">{sidebarOpen&&<div className="dashboard-overlay" onClick={()=>setSidebarOpen(false)}/>}<aside className={`dashboard-sidebar ${sidebarOpen?'sidebar-open':''}`}><div className="dashboard-logo">Skill<span>Swap</span></div><div className="sidebar-profile"><div className="sidebar-avatar">{initials}</div><div><h3>{user?.name}</h3><p>{user?.department || 'Student'}</p></div></div><nav className="dashboard-nav">{[['/dashboard','⌂','Dashboard'],['/profile','◯','Profile'],['/explore','⌕','Explore Skills'],['/matches','✦','Matches'],['/requests','…','Requests'],['/sessions','▣','Sessions'],['/messages','◌','Messages'],['/notifications','◉','Notifications'],['/learning','🎓','Learning Journey']].map(([to,icon,label])=><Link key={to} to={to} className={`dashboard-nav-item ${to==='/dashboard'?'active':''}`} onClick={()=>setSidebarOpen(false)}><span>{icon}</span>{label}</Link>)}</nav><div className="sidebar-bottom"><Link to="/settings" className="dashboard-nav-item"><span>⚙</span>Settings</Link><button className="dashboard-nav-item logout-item" onClick={signOut}><span>↪</span>Logout</button></div></aside><div className="dashboard-main"><header className="dashboard-topbar"><button className="dashboard-menu-button" onClick={()=>setSidebarOpen(v=>!v)}>☰</button><div className="dashboard-search">⌕<input placeholder="Search skills, people…" /></div><div className="top-user"><div className="top-avatar">{initials}</div><div><b>{user?.name}</b><span>{user?.department || 'Student'}</span></div></div></header><section className="dashboard-content"><div className="welcome-row"><div><p className="eyebrow">YOUR DASHBOARD</p><h1>Welcome back, {user?.name?.split(' ')[0]} 👋</h1><p>Manage your skills and connect with people who can learn from you.</p></div><button className="primary-submit" onClick={()=>navigate('/explore')}>Find matches</button></div><div className="stat-grid"><Stat label="Skills to teach" value={teach.length}/><Stat label="Skills to learn" value={learn.length}/><Stat label="Pending requests" value={(stats.incoming_pending_requests||0)+(stats.outgoing_pending_requests||0)}/><Stat label="Accepted exchanges" value={stats.accepted_requests||0}/></div><div className="dashboard-columns"><section className="dashboard-panel"><div className="panel-title"><div><h2>Your skills</h2><p>Saved in your profile</p></div><Link to="/skill-setup">Edit skills</Link></div><div className="skill-list"><SkillList title="Teaching" items={teach}/><SkillList title="Learning" items={learn}/></div></section><section className="dashboard-panel"><div className="panel-title"><div><h2>Recent activity</h2><p>From your account</p></div><Link to="/requests">View all</Link></div>{matches.length?<div className="activity-list">{matches.map(r=><div className="activity-item" key={r.id}><div className="activity-dot"/><div><b>{r.status} request</b><p>{r.sender_id===user.id?`You → ${r.receiver_name}`:`${r.sender_name} → you`}</p><small>{r.offered_skill_name} ↔ {r.requested_skill_name}</small></div></div>)}</div>:<div className="empty-state small">No requests yet. Explore skills to start your first exchange.</div>}</section></div></section></div></main>;
+  const { user, setUser } = useAuth();
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setError('');
+      const response = await api.get('/dashboard');
+      setData(response.data);
+      if (response.data.user) setUser(previous => ({ ...(previous || {}), ...response.data.user }));
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not load your dashboard.'));
+    } finally { setLoading(false); }
+  }, [setUser]);
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 8000);
+    const refresh = () => load();
+    window.addEventListener('skillswap:refresh', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('skillswap:refresh', refresh); };
+  }, [load]);
+
+  const skills = data?.skills || [];
+  const teach = useMemo(() => skills.filter(s => s.type === 'TEACH'), [skills]);
+  const learn = useMemo(() => skills.filter(s => s.type === 'LEARN'), [skills]);
+  const stats = data?.statistics || {};
+  const upcoming = data?.upcoming_sessions || [];
+  const requests = data?.recent_requests || [];
+  const notifications = data?.notifications || [];
+
+  if (loading) return <div className="dashboard-modern-loading"><div className="loading-orb"/><h2>Preparing your workspace</h2><p>Loading your skills, connections and sessions…</p></div>;
+  if (error) return <div className="dashboard-error"><h2>We couldn't load your workspace</h2><p>{error}</p><button onClick={load}>Try again</button></div>;
+
+  return <div className="dashboard-modern">
+    <section className="welcome-panel">
+      <div><span className="dashboard-eyebrow">YOUR LEARNING WORKSPACE</span><h2>Welcome back, {user?.name?.split(' ')[0] || 'student'}.</h2><p>Your profile, matches, requests and learning progress are all connected here.</p></div>
+      <div className="welcome-actions"><Link to="/matches" className="dash-primary"><UsersRound size={17}/> Find matches</Link><Link to="/skill-setup" className="dash-secondary"><Sparkles size={17}/> Update skills</Link></div>
+    </section>
+
+    <section className="dashboard-grid stats-grid">
+      <article className="metric-card"><div className="metric-icon blue"><Sparkles size={19}/></div><div><span>Teaching skills</span><strong>{teach.length}</strong><small>{teach.length ? 'Ready to share' : 'Add your first skill'}</small></div></article>
+      <article className="metric-card"><div className="metric-icon purple"><BookOpen size={19}/></div><div><span>Learning goals</span><strong>{learn.length}</strong><small>{learn.length ? 'Skills you want to learn' : 'Choose a learning goal'}</small></div></article>
+      <article className="metric-card"><div className="metric-icon orange"><Clock3 size={19}/></div><div><span>Pending requests</span><strong>{Number(stats.incoming_pending_requests || 0)}</strong><small>{Number(stats.incoming_pending_requests || 0) ? 'Needs your response' : 'You are all caught up'}</small></div></article>
+      <article className="metric-card"><div className="metric-icon green"><CheckCircle2 size={19}/></div><div><span>Accepted exchanges</span><strong>{Number(stats.accepted_requests || 0)}</strong><small>Active connections</small></div></article>
+    </section>
+
+    <div className="dashboard-columns">
+      <section className="dashboard-card wide">
+        <div className="card-heading"><div><span>YOUR SKILL PROFILE</span><h3>What you teach & want to learn</h3></div><Link to="/skill-setup">Edit skills <ArrowRight size={15}/></Link></div>
+        <div className="skill-overview">
+          <div className="skill-column"><div className="skill-column-title"><span className="dot teach-dot"/>Teaching</div>{teach.length ? teach.slice(0, 6).map(s => <div className="skill-row" key={s.id}><span>{s.name}</span><b>{s.level === 'ADVANCED' ? 'PROFICIENT' : s.level}</b></div>) : <div className="soft-empty">Nothing added yet. <Link to="/skill-setup">Add teaching skills</Link></div>}</div>
+          <div className="skill-divider"/>
+          <div className="skill-column"><div className="skill-column-title"><span className="dot learn-dot"/>Learning</div>{learn.length ? learn.slice(0, 6).map(s => <div className="skill-row" key={s.id}><span>{s.name}</span><b>{s.level === 'ADVANCED' ? 'PROFICIENT' : s.level}</b></div>) : <div className="soft-empty">Nothing added yet. <Link to="/skill-setup">Add learning goals</Link></div>}</div>
+        </div>
+      </section>
+
+      <section className="dashboard-card">
+        <div className="card-heading"><div><span>UP NEXT</span><h3>Sessions</h3></div><Link to="/sessions">View all <ArrowRight size={15}/></Link></div>
+        {upcoming.length ? upcoming.slice(0, 3).map(s => { const other = Number(s.user1_id) === Number(user?.id) ? s.user2_name : s.user1_name; return <button className="mini-session" key={s.id} onClick={() => navigate('/sessions')}><div className="mini-avatar">{initials(other)}</div><div><strong>{other || 'Connection'}</strong><span>{dateText(s.scheduled_at)}</span></div><CalendarDays size={16}/></button>; }) : <div className="card-empty"><CalendarDays size={27}/><strong>No sessions scheduled</strong><span>Accept a request to start planning your first exchange.</span><Link to="/requests">View requests</Link></div>}
+      </section>
+
+      <section className="dashboard-card wide">
+        <div className="card-heading"><div><span>ACTIVITY</span><h3>Recent exchanges</h3></div><Link to="/requests">Manage requests <ArrowRight size={15}/></Link></div>
+        {requests.length ? <div className="activity-list">{requests.map(r => { const isReceiver = Number(r.receiver_id) === Number(user?.id); const person = isReceiver ? r.sender_name : r.receiver_name; return <div className="activity-row" key={r.id}><div className="activity-avatar">{initials(person)}</div><div className="activity-copy"><strong>{person}</strong><span>{r.offered_skill_name} ↔ {r.requested_skill_name}</span></div><span className={`status-pill ${String(r.status).toLowerCase()}`}>{r.status}</span></div>; })}</div> : <div className="soft-empty">Your exchange activity will appear here.</div>}
+      </section>
+
+      <section className="dashboard-card">
+        <div className="card-heading"><div><span>NOTIFICATIONS</span><h3>Latest updates</h3></div><Link to="/notifications">See all <ArrowRight size={15}/></Link></div>
+        {notifications.length ? notifications.slice(0, 4).map(n => <div className="notification-row" key={n.id}><div className="notification-icon"><MessageCircle size={15}/></div><div><strong>{n.title}</strong><span>{n.message}</span></div></div>) : <div className="card-empty"><MessageCircle size={27}/><strong>No new notifications</strong><span>You're up to date.</span></div>}
+      </section>
+    </div>
+  </div>;
 }
-function Stat({label,value}){return <div className="stat-card"><span>{label}</span><strong>{value}</strong></div>}
-function SkillList({title,items}){return <div className="skill-list-block"><h3>{title}</h3>{items.length?<div className="chips">{items.map(s=><span key={s.id} className="chip">{s.name}<small>{s.level}</small></span>)}</div>:<p className="muted">No skills added yet.</p>}</div>}

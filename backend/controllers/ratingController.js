@@ -178,7 +178,7 @@ const createRating = async (req, res) => {
         reviewerId,
         reviewee_id,
         ratingValue,
-        review || null,
+        (review || "").trim() || null,
       ]
     );
 

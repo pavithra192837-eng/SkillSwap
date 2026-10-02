@@ -19,6 +19,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const ratingRoutes = require("./routes/ratingRoutes");
 const learningRoutes = require("./routes/learningRoutes");
+const connectionRoutes = require("./routes/connectionRoutes");
 
 // =========================
 // APP
@@ -133,6 +134,11 @@ app.use(
   learningRoutes
 );
 
+app.use(
+  "/api/connections",
+  connectionRoutes
+);
+
 // =========================
 // 404 HANDLER
 // =========================
@@ -171,11 +177,60 @@ async function startServer() {
     // Test database connection
     await testConnection();
 
+    // Automatically complete live sessions when their configured duration expires.
+    // This keeps both participants synchronized even if one browser is closed.
+    const expireSessions = async () => {
+      let connection;
+      try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+        const [expired] = await connection.query(`
+          SELECT id, user1_id, user2_id
+          FROM sessions
+          WHERE status = 'ONGOING'
+            AND started_at IS NOT NULL
+            AND DATE_ADD(started_at, INTERVAL duration_minutes MINUTE) <= NOW()
+          FOR UPDATE
+        `);
+        if (expired.length) {
+          const ids = expired.map((row) => row.id);
+          await connection.query(`
+            UPDATE sessions
+            SET status = 'COMPLETED', ended_at = NOW(), end_reason = 'TIME_EXPIRED'
+            WHERE id IN (${ids.map(() => '?').join(',')})
+          `, ids);
+          await connection.query(`
+            UPDATE learning_progress
+            SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW())
+            WHERE session_id IN (${ids.map(() => '?').join(',')}) AND status = 'IN_PROGRESS'
+          `, ids);
+          const notificationValues = [];
+          for (const session of expired) {
+            notificationValues.push(session.user1_id, 'SESSION_COMPLETED', 'Session time is up', 'Your SkillSwap session ended automatically when its duration expired.', session.id);
+            notificationValues.push(session.user2_id, 'SESSION_COMPLETED', 'Session time is up', 'Your SkillSwap session ended automatically when its duration expired.', session.id);
+          }
+          await connection.query(`
+            INSERT INTO notifications (user_id, type, title, message, reference_id, is_read)
+            VALUES ${expired.map(() => '(?, ?, ?, ?, ?, FALSE), (?, ?, ?, ?, ?, FALSE)').join(',')}
+          `, notificationValues);
+        }
+        await connection.commit();
+      } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('Session expiry check failed:', error.message);
+      } finally {
+        connection?.release();
+      }
+    };
+    await expireSessions();
+    setInterval(expireSessions, 15000);
+
     // Start server
     app.listen(PORT, () => {
       console.log(
         `🚀 SkillSwap server running on http://localhost:${PORT}`
       );
+      console.log('⏱️ Session auto-expiry monitor enabled');
     });
   } catch (error) {
     console.error(

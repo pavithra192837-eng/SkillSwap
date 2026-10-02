@@ -522,20 +522,18 @@ const updateUserSkill = async (
         "BEGINNER",
         "INTERMEDIATE",
         "ADVANCED",
+        "PROFICIENT",
       ];
 
-      if (
-        !allowedLevels.includes(level)
-      ) {
+      if (!allowedLevels.includes(level)) {
         return res.status(400).json({
           success: false,
-          message:
-            "Invalid skill level",
+          message: "Invalid skill level",
         });
       }
 
       updates.push("level = ?");
-      values.push(level);
+      values.push(level === "PROFICIENT" ? "ADVANCED" : level);
     }
 
     if (updates.length === 0) {

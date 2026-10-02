@@ -35,6 +35,9 @@ const getMatches = async (req, res) => {
         u.bio,
         u.profile_image,
 
+        COALESCE((SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.reviewee_id = u.id), 0) AS average_rating,
+        (SELECT COUNT(*) FROM ratings r WHERE r.reviewee_id = u.id) AS rating_count,
+
         COUNT(
           DISTINCT CASE
             WHEN their_skill.type = 'TEACH'

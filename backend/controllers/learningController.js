@@ -12,6 +12,7 @@ const getMyLearningProgress = async (req, res) => {
         lp.skill_id,
         lp.status,
         lp.completed_at,
+        us.level AS learner_level,
         lp.added_to_profile_at,
         lp.created_at,
         s.scheduled_at,
@@ -25,10 +26,12 @@ const getMyLearningProgress = async (req, res) => {
       INNER JOIN sessions s ON s.id = lp.session_id
       INNER JOIN skills skill ON skill.id = lp.skill_id
       INNER JOIN users teacher ON teacher.id = lp.teacher_id
+      LEFT JOIN user_skills us ON us.user_id = lp.learner_id AND us.skill_id = lp.skill_id AND us.type = 'LEARN'
       WHERE lp.learner_id = ?
       ORDER BY lp.created_at DESC
     `, [userId]);
-    res.json({ success: true, count: rows.length, progress: rows });
+    const progress = rows.map(row => ({ ...row, level: row.learner_level === 'ADVANCED' ? 'PROFICIENT' : (row.learner_level || 'BEGINNER') }));
+    res.json({ success: true, count: progress.length, progress });
   } catch (error) {
     console.error("Learning progress error:", error.message);
     res.status(500).json({ success: false, message: "Failed to load learning progress" });

@@ -329,6 +329,30 @@ const initializeDatabase = async () => {
       )
     `);
 
+    // Backward-compatible session timing fields for existing databases.
+    const [sessionColumns] = await connection.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sessions'
+    `);
+    const existingSessionColumns = new Set(sessionColumns.map((row) => row.COLUMN_NAME));
+    const sessionMigrations = [
+      ['duration_minutes', `ALTER TABLE sessions ADD COLUMN duration_minutes INT NOT NULL DEFAULT 60`],
+      ['started_at', `ALTER TABLE sessions ADD COLUMN started_at DATETIME NULL`],
+      ['ended_at', `ALTER TABLE sessions ADD COLUMN ended_at DATETIME NULL`],
+      ['ended_by', `ALTER TABLE sessions ADD COLUMN ended_by INT NULL`],
+      ['end_reason', `ALTER TABLE sessions ADD COLUMN end_reason VARCHAR(50) NULL`],
+    ];
+    for (const [column, sql] of sessionMigrations) {
+      if (!existingSessionColumns.has(column)) {
+        await connection.query(sql);
+      }
+    }
+
+    console.log(
+      "✅ session timing fields ready"
+    );
+
     console.log(
       "✅ sessions table ready"
     );

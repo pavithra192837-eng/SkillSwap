@@ -1,267 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import {
-  onChildAdded, onValue, onDisconnect, push, ref, remove, set, update
-} from "firebase/database";
-import { signInAnonymously } from "firebase/auth";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, ShieldCheck } from "lucide-react";
-import { firebaseAuth, realtimeDb, firebaseConfigured } from "../firebase";
-import { useAuth } from "../context/AuthContext";
-import api from "../api";
-import "./Call.css";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { ArrowLeft, Camera, CameraOff, Check, Maximize2, Mic, MicOff, MessageCircle, PhoneOff, Send, ShieldCheck, Volume2, X, Video, Phone, MoreHorizontal } from 'lucide-react';
+import { onChildAdded, onDisconnect, onValue, push, ref, remove, serverTimestamp, update } from 'firebase/database';
+import { signInAnonymously } from 'firebase/auth';
+import { firebaseAuth, realtimeDb, firebaseConfigured } from '../firebase';
+import { useAuth } from '../context/AuthContext'; import api from '../api'; import './Call.css';
+const randomId=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(16).slice(2)}`; const chatId=(a,b)=>[Number(a),Number(b)].sort((x,y)=>x-y).join('_');
+const initials=(name='Student')=>name.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase()||'S';
+async function ensureFirebase(){if(!firebaseConfigured||!firebaseAuth||!realtimeDb)throw new Error('Realtime calling is not configured. Add Firebase variables and enable Anonymous Authentication.');if(!firebaseAuth.currentUser)await signInAnonymously(firebaseAuth);}
+export default function Call(){const {user}=useAuth();const navigate=useNavigate();const location=useLocation();const [params]=useSearchParams();const incoming=params.get('incoming')==='1';const callId=params.get('callId')||useMemo(randomId,[]);const targetId=Number(params.get('userId'));const targetName=params.get('name')||'SkillSwap student';const sessionId=params.get('sessionId');const initialMode=location.pathname.includes('video-call')?'video':'audio';
+const pcRef=useRef(null),streamRef=useRef(null),localVideoRef=useRef(null),remoteVideoRef=useRef(null),remoteAudioRef=useRef(null),cleanupRef=useRef([]),candidateQueueRef=useRef([]),remoteReadyRef=useRef(false),endedRef=useRef(false),connectedRef=useRef(false),completingRef=useRef(false),startedAtRef=useRef(0);
+const callRef=useMemo(()=>realtimeDb?ref(realtimeDb,`calls/${callId}`):null,[callId]);
+const [mode,setMode]=useState(initialMode),[status,setStatus]=useState(incoming?'Connecting':'Calling'),[error,setError]=useState(''),[muted,setMuted]=useState(false),[cameraOff,setCameraOff]=useState(initialMode==='audio'),[chatOpen,setChatOpen]=useState(false),[elapsed,setElapsed]=useState(0),[messages,setMessages]=useState([]),[message,setMessage]=useState(''),[chatReady,setChatReady]=useState(false),[fullscreen,setFullscreen]=useState(false),[switching,setSwitching]=useState(false),[remoteReady,setRemoteReady]=useState(false);
+const [sessionMeta,setSessionMeta]=useState(null),[sessionRemaining,setSessionRemaining]=useState(null),[sessionSummary,setSessionSummary]=useState(null);
+const cleanup=useCallback(()=>{cleanupRef.current.forEach(fn=>{try{fn()}catch{}});cleanupRef.current=[]},[]);
+const stopMedia=useCallback(()=>{streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;if(localVideoRef.current)localVideoRef.current.srcObject=null;if(remoteVideoRef.current)remoteVideoRef.current.srcObject=null;if(remoteAudioRef.current)remoteAudioRef.current.srcObject=null;if(pcRef.current){try{pcRef.current.ontrack=null;pcRef.current.onicecandidate=null;pcRef.current.onconnectionstatechange=null;pcRef.current.close()}catch{}pcRef.current=null}},[]);
+const completeSession=useCallback(async(reason='COMPLETED')=>{if(!sessionId||completingRef.current)return;completingRef.current=true;try{await api.put(`/sessions/${sessionId}/complete`,{reason})}catch{}},[sessionId]);
+const finish=useCallback(async(remote=false,reason='USER_ENDED')=>{if(endedRef.current)return;endedRef.current=true;setStatus(reason==='TIME_EXPIRED'?'Time is up':remote?'Session ended':'Ending session');try{if(callRef)await update(callRef,{status:'ENDED',endReason:reason,endedAt:serverTimestamp(),endedBy:Number(user.id)});if(callRef){await remove(ref(realtimeDb,`incomingCalls/${user.id}/${callId}`));await remove(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`))}}catch{}if(sessionId)await completeSession(reason);const usedSeconds=sessionMeta?.started_at?Math.max(0,Math.floor((Date.now()-new Date(sessionMeta.started_at).getTime())/1000)):elapsed;setSessionSummary({reason,duration:usedSeconds});cleanup();stopMedia();window.setTimeout(()=>navigate(sessionId?'/sessions':'/messages',{replace:true}),sessionId?2500:100)},[callRef,callId,cleanup,completeSession,navigate,sessionId,stopMedia,targetId,user.id,sessionMeta,elapsed]);
+useEffect(()=>{if(!sessionId)return;let active=true;const loadSession=async()=>{try{const r=await api.get(`/sessions/${sessionId}`);if(active)setSessionMeta(r.data.session)}catch{if(active)setError('Could not load the session timer.')}};loadSession();const poll=setInterval(loadSession,5000);return()=>{active=false;clearInterval(poll)}},[sessionId]);
 
-async function ensureAuth() {
-  if (!firebaseConfigured || !firebaseAuth || !realtimeDb) {
-    throw new Error("Realtime calling is not configured. Add the VITE_FIREBASE_* values to frontend/.env.");
-  }
-  if (!firebaseAuth.currentUser) await signInAnonymously(firebaseAuth);
-}
+useEffect(()=>{if(!sessionMeta?.started_at||!sessionMeta?.duration_minutes)return;const tick=()=>{const start=new Date(sessionMeta.started_at).getTime();const end=start+Number(sessionMeta.duration_minutes)*60000;const now=Date.now();const remaining=Math.max(0,end-now);setSessionRemaining(Math.ceil(remaining/1000));setElapsed(Math.max(0,Math.floor((now-start)/1000)));if(remaining<=0&&!endedRef.current)finish(false,'TIME_EXPIRED')};tick();const timer=setInterval(tick,1000);return()=>clearInterval(timer)},[sessionMeta,finish]);
 
-export default function Call() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [params] = useSearchParams();
-  const callIdParam = params.get("callId");
-  const callerIdParam = params.get("callerId");
-  const incoming = Boolean(callIdParam);
-  const targetId = Number(params.get("userId"));
-  const targetName = params.get("name") || "SkillSwap user";
-  const sessionId = Number(params.get("sessionId")) || null;
-  const type = location.pathname === "/video-call" ? "video" : "voice";
-  const callIdRef = useRef(callIdParam || `${user.id}_${targetId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
-  const pcRef = useRef(null);
-  const localStreamRef = useRef(null);
-  const cleanupRef = useRef(() => {});
-  const endedRef = useRef(false);
-  const [status, setStatus] = useState(incoming ? "Connecting…" : "Calling…");
-  const connectedRef = useRef(false);
-  const [muted, setMuted] = useState(false);
-  const [cameraOff, setCameraOff] = useState(false);
-  const [error, setError] = useState("");
+useEffect(()=>{if(sessionMeta?.status==='COMPLETED'&&!endedRef.current)finish(true,sessionMeta.end_reason||'TIME_EXPIRED')},[sessionMeta,finish]);
 
-  const finish = useCallback(async (goBack = true, reason = "USER_ENDED") => {
-    if (endedRef.current) {
-      if (goBack) navigate("/messages");
-      return;
-    }
-    endedRef.current = true;
-    setStatus("Call ended");
-
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    localStreamRef.current = null;
-    if (pcRef.current) {
-      pcRef.current.ontrack = null;
-      pcRef.current.onicecandidate = null;
-      pcRef.current.onconnectionstatechange = null;
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-
-    if (sessionId && ["USER_ENDED", "REMOTE_ENDED"].includes(reason)) {
-      try { await api.put(`/sessions/${sessionId}/complete`); } catch (e) { console.warn("Session completion sync failed:", e.message); }
-    }
-
-    if (firebaseConfigured && realtimeDb) {
-      try {
-        const callId = callIdRef.current;
-        const callRef = ref(realtimeDb, `calls/${callId}`);
-        await update(callRef, { status: "ENDED", endReason: reason, endedAt: Date.now() });
-        await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
-        if (targetId) await remove(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`));
-      } catch (e) {
-        console.warn("Call cleanup failed:", e.message);
-      }
-    }
-    cleanupRef.current?.();
-    cleanupRef.current = () => {};
-    if (goBack) navigate("/messages", { replace: true });
-  }, [navigate, sessionId, targetId, user.id]);
-
-  useEffect(() => {
-    let disposed = false;
-    const localCleanups = [];
-
-    const run = async () => {
-      try {
-        await ensureAuth();
-        if (disposed) return;
-
-        const callId = callIdRef.current;
-        const callRef = ref(realtimeDb, `calls/${callId}`);
-        const receiverId = incoming ? Number(callerIdParam || params.get("userId")) : targetId;
-        if (!receiverId) throw new Error("The other participant could not be identified.");
-
-        const iceServers = [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-        ];
-        if (import.meta.env.VITE_TURN_URL && import.meta.env.VITE_TURN_USERNAME && import.meta.env.VITE_TURN_CREDENTIAL) {
-          iceServers.push({
-            urls: import.meta.env.VITE_TURN_URL,
-            username: import.meta.env.VITE_TURN_USERNAME,
-            credential: import.meta.env.VITE_TURN_CREDENTIAL,
-          });
-        }
-        const pc = new RTCPeerConnection({ iceServers });
-        pcRef.current = pc;
-
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
-        if (disposed || endedRef.current) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        localStreamRef.current = stream;
-        const localVideo = document.getElementById("local-call-video");
-        if (localVideo) localVideo.srcObject = stream;
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-        pc.ontrack = (event) => {
-          const remoteStream = event.streams[0];
-          const remoteVideo = document.getElementById("remote-call-video");
-          const remoteAudio = document.getElementById("remote-call-audio");
-          if (remoteVideo) remoteVideo.srcObject = remoteStream;
-          if (remoteAudio) remoteAudio.srcObject = remoteStream;
-        };
-
-        pc.onconnectionstatechange = () => {
-          if (["connected"].includes(pc.connectionState)) { connectedRef.current = true; setStatus("Connected"); }
-          if (["failed", "closed"].includes(pc.connectionState) && !endedRef.current) finish(true, "CONNECTION_LOST");
-        };
-
-        const ownCandidatesPath = incoming ? "receiverCandidates" : "callerCandidates";
-        const otherCandidatesPath = incoming ? "callerCandidates" : "receiverCandidates";
-        pc.onicecandidate = (event) => {
-          if (event.candidate && !endedRef.current) {
-            push(ref(realtimeDb, `calls/${callId}/${ownCandidatesPath}`), event.candidate.toJSON()).catch(() => {});
-          }
-        };
-
-        // If the browser/network disappears, Firebase marks this call ended for the other user.
-        await onDisconnect(callRef).update({ status: "ENDED", endReason: "DISCONNECTED", endedAt: Date.now() });
-        await onDisconnect(ref(realtimeDb, `incomingCalls/${incoming ? user.id : receiverId}/${callId}`)).remove();
-
-        const statusUnsub = onValue(callRef, async (snap) => {
-          const data = snap.val();
-          if (!data) return;
-          if (data.status === "ENDED" && !endedRef.current) {
-            await finish(true, data.endReason || "REMOTE_ENDED");
-          }
-        });
-        localCleanups.push(statusUnsub);
-
-        if (!incoming) {
-          const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: type === "video" });
-          await pc.setLocalDescription(offer);
-          await set(callRef, {
-            callerId: Number(user.id),
-            callerName: user.name,
-            receiverId,
-            receiverName: targetName,
-            type,
-            status: "RINGING",
-            offer: { type: offer.type, sdp: offer.sdp },
-            createdAt: Date.now(),
-          });
-          await set(ref(realtimeDb, `incomingCalls/${receiverId}/${callId}`), {
-            callerId: Number(user.id),
-            callerName: user.name,
-            receiverId,
-            receiverName: targetName,
-            type,
-            status: "RINGING",
-            createdAt: Date.now(),
-          });
-          setStatus("Ringing…");
-        } else {
-          // Wait for either an offer or an already-ended call.
-          const data = await new Promise((resolve, reject) => {
-            let done = false;
-            const unsub = onValue(callRef, (snap) => {
-              const value = snap.val();
-              if (value?.status === "ENDED") {
-                done = true;
-                unsub();
-                reject(new Error("This call has already ended."));
-              } else if (value?.offer) {
-                done = true;
-                unsub();
-                resolve(value);
-              }
-            });
-            setTimeout(() => {
-              if (!done) {
-                unsub();
-                reject(new Error("The call invitation expired."));
-              }
-            }, 30000);
-          });
-          if (endedRef.current) return;
-          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          connectedRef.current = true;
-          await update(callRef, { answer: { type: answer.type, sdp: answer.sdp }, status: "CONNECTED" });
-          await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
-          setStatus("Connected");
-        }
-
-        const candidateUnsub = onChildAdded(ref(realtimeDb, `calls/${callId}/${otherCandidatesPath}`), (snap) => {
-          const candidate = snap.val();
-          if (candidate && !endedRef.current) pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
-        });
-        localCleanups.push(candidateUnsub);
-
-        const timeout = setTimeout(() => {
-          if (!endedRef.current && !connectedRef.current) finish(true, "NO_ANSWER");
-        }, 30000);
-        localCleanups.push(() => clearTimeout(timeout));
-      } catch (e) {
-        if (disposed || endedRef.current) return;
-        setError(e.message || "Could not start the call.");
-        setStatus("Call unavailable");
-      }
-    };
-
-    run();
-    cleanupRef.current = () => localCleanups.splice(0).forEach((cleanup) => { try { cleanup(); } catch {} });
-
-    return () => {
-      disposed = true;
-      cleanupRef.current?.();
-      if (!endedRef.current) finish(false, "LEFT_CALL_SCREEN");
-    };
-  }, [finish, incoming, callerIdParam, callIdParam, targetId, targetName, type, user.id, user.name]);
-
-  const toggleMute = () => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setMuted(!track.enabled);
-  };
-
-  const toggleCamera = () => {
-    const track = localStreamRef.current?.getVideoTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setCameraOff(!track.enabled);
-  };
-
-  return (
-    <main className={`call-page-real ${type}`}>
-      <header className="call-topbar">
-        <div><span className="call-eyebrow">{type === "video" ? "VIDEO SESSION" : "VOICE SESSION"}</span><h1>{targetName}</h1><p><span className={`call-dot ${status === "Connected" ? "live" : ""}`} />{status}</p></div>
-        <div className="call-secure"><ShieldCheck size={17} /> Private session</div>
-      </header>
-      {error && <div className="call-error">{error}</div>}
-      <section className="call-stage">
-        {type === "video" ? <><video id="remote-call-video" autoPlay playsInline className="remote-video-real" /><div className="remote-placeholder"><div>{targetName[0]}</div><span>{status}</span></div><video id="local-call-video" autoPlay playsInline muted className="local-video-real" /></> : <div className="voice-center"><div className="voice-avatar">{targetName[0]?.toUpperCase()}</div><h2>{targetName}</h2><p>{status}</p><audio id="remote-call-audio" autoPlay /></div>}
-      </section>
-      <footer className="call-controls-real">
-        <button className={`round-control ${muted ? "active" : ""}`} onClick={toggleMute}>{muted ? <MicOff /> : <Mic />}<span>{muted ? "Unmute" : "Mute"}</span></button>
-        {type === "video" && <button className={`round-control ${cameraOff ? "active" : ""}`} onClick={toggleCamera}>{cameraOff ? <VideoOff /> : <Video />}<span>{cameraOff ? "Camera on" : "Camera off"}</span></button>}
-        <button className="end-call-control" onClick={() => finish(true, "USER_ENDED")}><PhoneOff /><span>End call</span></button>
-      </footer>
-    </main>
-  );
+const buildPeer=useCallback(async()=>{await ensureFirebase();if(!callRef||!targetId)throw new Error('The other participant is missing.');const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},...(import.meta.env.VITE_TURN_URL&&import.meta.env.VITE_TURN_USERNAME&&import.meta.env.VITE_TURN_CREDENTIAL?[{urls:import.meta.env.VITE_TURN_URL,username:import.meta.env.VITE_TURN_USERNAME,credential:import.meta.env.VITE_TURN_CREDENTIAL}]:[])]});pcRef.current=pc;const media=await navigator.mediaDevices.getUserMedia({audio:true,video:initialMode==='video'?{width:{ideal:1280},height:{ideal:720},facingMode:'user'}:false});streamRef.current=media;media.getTracks().forEach(t=>pc.addTrack(t,media));if(initialMode==='audio')pc.addTransceiver('video',{direction:'sendrecv'});if(localVideoRef.current)localVideoRef.current.srcObject=media;pc.ontrack=e=>{const stream=e.streams[0];if(remoteVideoRef.current)remoteVideoRef.current.srcObject=stream;if(remoteAudioRef.current)remoteAudioRef.current.srcObject=stream;setRemoteReady(true)};pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected'){connectedRef.current=true;startedAtRef.current=Date.now();setStatus('Connected')}if(['failed','closed'].includes(pc.connectionState)&&!endedRef.current)finish(false,'CONNECTION_LOST')};const own=incoming?'receiverCandidates':'callerCandidates',other=incoming?'callerCandidates':'receiverCandidates';pc.onicecandidate=e=>{if(e.candidate&&!endedRef.current)push(ref(realtimeDb,`calls/${callId}/${own}`),e.candidate.toJSON()).catch(()=>{})};await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
+const callUnsub=onValue(callRef,async snap=>{const data=snap.val();if(!data||endedRef.current)return;if(data.status==='ENDED'){finish(true,data.endReason||'REMOTE_ENDED');return}if(!incoming&&data.answer&&!remoteReadyRef.current){try{await pc.setRemoteDescription(new RTCSessionDescription(data.answer));remoteReadyRef.current=true;for(const c of candidateQueueRef.current.splice(0))await pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{})}catch{setError('The remote connection could not be established.')}}});cleanupRef.current.push(callUnsub);const candUnsub=onChildAdded(ref(realtimeDb,`calls/${callId}/${other}`),async snap=>{const c=snap.val();if(!c||endedRef.current)return;if(!remoteReadyRef.current)candidateQueueRef.current.push(c);else await pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{})});cleanupRef.current.push(candUnsub);
+if(incoming){const data=await new Promise((resolve,reject)=>{let done=false;const unsub=onValue(callRef,s=>{const d=s.val();if(!d)return;if(d.status==='ENDED'){done=true;unsub();reject(new Error('The caller ended the call.'))}else if(d.offer){done=true;unsub();resolve(d)}});cleanupRef.current.push(unsub);setTimeout(()=>{if(!done){unsub();reject(new Error('This call invitation expired.'))}},30000)});await pc.setRemoteDescription(new RTCSessionDescription(data.offer));remoteReadyRef.current=true;for(const c of candidateQueueRef.current.splice(0))await pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});const answer=await pc.createAnswer();await pc.setLocalDescription(answer);await update(callRef,{answer:{type:answer.type,sdp:answer.sdp},status:'ACTIVE',answeredAt:serverTimestamp()})}else{const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:true});await pc.setLocalDescription(offer);await update(callRef,{callerId:Number(user.id),calleeId:targetId,callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',offer:{type:offer.type,sdp:offer.sdp},createdAt:serverTimestamp()});await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()})}},[callId,callRef,finish,incoming,initialMode,targetId,user.id,user.name]);
+useEffect(()=>{let disposed=false;(async()=>{try{await buildPeer();if(disposed){stopMedia()}}catch(e){if(!disposed){setError(e.message||'Could not start the call.');setStatus('Unavailable');}}})();return()=>{disposed=true;if(!endedRef.current)finish(false,'LEFT_CALL_SCREEN');else{cleanup();stopMedia()}}},[buildPeer,finish,stopMedia,cleanup]);
+useEffect(()=>{if(sessionId)return;const timer=setInterval(()=>{if(connectedRef.current&&startedAtRef.current)setElapsed(Math.floor((Date.now()-startedAtRef.current)/1000))},1000);return()=>clearInterval(timer)},[sessionId]);
+useEffect(()=>{if(!chatOpen||!targetId)return;let off=false;ensureFirebase().then(()=>{if(off)return;setChatReady(true);const unsub=onValue(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),s=>{const v=s.val()||{};setMessages(Object.entries(v).map(([id,x])=>({id,...x})).sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)))});cleanupRef.current.push(unsub)}).catch(e=>setError(e.message));return()=>{off=true}},[chatOpen,targetId,user.id]);
+const toggleMute=()=>{const t=streamRef.current?.getAudioTracks()[0];if(!t)return;t.enabled=!t.enabled;setMuted(!t.enabled)};
+const switchMode=async()=>{if(switching||!pcRef.current)return;setSwitching(true);try{const pc=pcRef.current;if(mode==='video'){const sender=pc.getSenders().find(s=>s.track?.kind==='video');if(sender){sender.replaceTrack(null);sender.track?.stop()}setMode('audio');setCameraOff(true);if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current}else{const media=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'}});const track=media.getVideoTracks()[0];const sender=pc.getSenders().find(s=>s.track?.kind==='video');if(sender)await sender.replaceTrack(track);else pc.addTransceiver(track,{direction:'sendrecv'});const audio=streamRef.current?.getAudioTracks()[0];streamRef.current=new MediaStream([...(audio?[audio]:[]),track]);if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;setMode('video');setCameraOff(false)}}catch(e){setError(e.name==='NotAllowedError'?'Camera permission was denied.':e.message||'Could not switch media mode.')}finally{setSwitching(false)}};
+const toggleCamera=()=>{const t=streamRef.current?.getVideoTracks()[0];if(!t)return;t.enabled=!t.enabled;setCameraOff(!t.enabled)};
+const sendMessage=async e=>{e.preventDefault();if(!message.trim()||!targetId)return;try{await ensureFirebase();await push(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),{senderId:Number(user.id),senderName:user.name,text:message.trim(),createdAt:Date.now()});setMessage('')}catch(e){setError(e.message||'Could not send message.')}};
+const time=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`;const remainingSeconds=sessionRemaining??null;const remainingText=remainingSeconds===null?'—':`${String(Math.floor(remainingSeconds/60)).padStart(2,'0')}:${String(remainingSeconds%60).padStart(2,'0')}`;const durationLabel=sessionMeta?.duration_minutes?`${sessionMeta.duration_minutes} min`:'';
+return <>{sessionSummary&&<div className="session-summary-overlay"><div className="session-summary-card"><div className="session-summary-check"><Check size={28}/></div><span className="call-overline">SESSION FINISHED</span><h2>{sessionSummary.reason==='TIME_EXPIRED'?'Time is up':'Session ended'}</h2><p>Your SkillSwap session has been marked completed for both participants.</p><div className="session-summary-stats"><div><strong>{String(Math.floor(sessionSummary.duration/60)).padStart(2,'0')}:{String(sessionSummary.duration%60).padStart(2,'0')}</strong><span>time spent</span></div><div><strong>{durationLabel||'Session'}</strong><span>scheduled duration</span></div></div><div className="session-summary-note">You can now rate your partner and confirm your learning progress.</div></div></div>}<main className={`call-room-v2 ${mode} ${chatOpen?'chat-open':''} ${fullscreen?'is-fullscreen':''}`}><header className="call-top"><div className="call-identity"><button className="call-icon-btn" onClick={()=>finish(false,'LEFT_CALL_SCREEN')}><ArrowLeft size={18}/></button><div className="call-avatar">{initials(targetName)}</div><div><div className="call-overline">LIVE SKILLSWAP SESSION</div><h1>{targetName}</h1><div className="call-status"><i className={status==='Connected'?'live':''}/>{status}{status==='Connected'&&<span>· {time}</span>}</div>{sessionMeta&&<div className={`session-countdown ${remainingSeconds!==null&&remainingSeconds<=60?'urgent':''}`}><span>TIME LEFT</span><strong>{remainingText}</strong></div>}</div></div><div className="call-top-actions"><div className="secure-label"><ShieldCheck size={14}/> Secure session</div><button className={`call-icon-btn ${chatOpen?'active':''}`} onClick={()=>setChatOpen(v=>!v)}><MessageCircle size={18}/></button><button className="call-icon-btn"><MoreHorizontal size={18}/></button></div></header>{error&&<div className="call-error-v2"><span>{error}</span><button onClick={()=>setError('')}><X size={15}/></button></div>}<div className="call-body"><section className="call-stage-v2">{mode==='video'?<><video ref={remoteVideoRef} className="remote-video-v2" autoPlay playsInline/><div className="video-placeholder" style={{opacity:remoteReady?0:1,pointerEvents:remoteReady?'none':'auto'}}><div className="pulse-avatar">{initials(targetName)}</div><h2>{status==='Calling'?`Calling ${targetName}`:status}</h2><p>{status==='Calling'?'Waiting for your peer to join the session…':'Video will appear when the connection is ready.'}</p></div><video ref={localVideoRef} className={`local-video-v2 ${cameraOff?'is-off':''}`} autoPlay playsInline muted/><div className="local-label">You</div><button className="expand-btn" onClick={()=>setFullscreen(v=>!v)}><Maximize2 size={16}/></button></>:<div className="audio-stage"><div className="audio-rings"><div className="audio-avatar">{initials(targetName)}</div></div><div className="audio-name">{targetName}</div><div className="audio-state">{status}{status==='Connected'&&` · ${time}`}</div><div className="audio-bars"><i/><i/><i/><i/><i/></div><audio ref={remoteAudioRef} autoPlay/></div>}</section>{chatOpen&&<aside className="call-chat-v2"><div className="call-chat-top"><div><span>SESSION CHAT</span><strong>{targetName}</strong></div><button onClick={()=>setChatOpen(false)}><X size={17}/></button></div><div className="call-chat-list">{messages.length?messages.map(m=><div className={`call-msg ${Number(m.senderId)===Number(user.id)?'mine':''}`} key={m.id}><span>{m.text}</span><small>{m.createdAt?new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''}</small></div>):<div className="chat-empty"><MessageCircle size={25}/><strong>Keep learning while you talk</strong><span>Send links, questions and quick notes without leaving the session.</span></div>}</div><form onSubmit={sendMessage} className="call-composer"><input value={message} onChange={e=>setMessage(e.target.value)} disabled={!chatReady} placeholder={chatReady?'Write a message…':'Connecting…'}/><button disabled={!message.trim()||!chatReady}><Send size={16}/></button></form></aside>}</div><footer className="call-bottom"><div className="call-controls-left"><button className={muted?'selected':''} onClick={toggleMute}><span className="control-icon">{muted?<MicOff/>:<Mic/>}</span><span>{muted?'Unmute':'Mute'}</span></button><button className={cameraOff?'selected':''} onClick={mode==='video'?toggleCamera:switchMode} disabled={switching}><span className="control-icon">{mode==='video'?(cameraOff?<CameraOff/>:<Camera/>):<Video/>}</span><span>{mode==='video'?(cameraOff?'Camera on':'Camera'):switching?'Switching…':'Start video'}</span></button><button className={chatOpen?'selected':''} onClick={()=>setChatOpen(v=>!v)}><span className="control-icon"><MessageCircle/></span><span>Chat</span></button><button onClick={switchMode} disabled={switching}><span className="control-icon">{mode==='video'?<Phone/>:<Video/>}</span><span>{mode==='video'?'Audio only':'Video'}</span></button><button><span className="control-icon"><Volume2/></span><span>Speaker</span></button></div><div className="session-time-chip"><span>{durationLabel||'Live session'}</span><strong>{remainingText}</strong></div><button className="end-session-btn" onClick={()=>finish(false,'USER_ENDED')}><PhoneOff size={18}/><span>End for both</span></button><div className="connection-chip"><Check size={13}/><span>{status==='Connected'?'Connection stable':'Waiting for participant'}</span></div></footer></main></>;
 }

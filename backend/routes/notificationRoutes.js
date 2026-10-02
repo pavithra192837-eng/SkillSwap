@@ -1,4 +1,3 @@
-id="j5q2rm"
 const express = require("express");
 
 const router = express.Router();

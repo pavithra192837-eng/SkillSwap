@@ -10,6 +10,7 @@ const {
   login,
   getMe,
   logout,
+  changePassword,
 } = require("../controllers/authController");
 
 // ========================================
@@ -29,6 +30,8 @@ router.post(
   "/login",
   login
 );
+
+router.put("/password", authMiddleware, changePassword);
 
 // ========================================
 // GET CURRENT USER
