@@ -1,0 +1,1791 @@
+/* =========================================================
+   MESSAGES PAGE
+========================================================= */
+
+.messages-page {
+  min-height: calc(100vh - 72px);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 35px 24px 50px;
+
+  background:
+    radial-gradient(
+      circle at 15% 10%,
+      rgba(59, 130, 246, 0.12),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 85% 20%,
+      rgba(99, 102, 241, 0.08),
+      transparent 25%
+    ),
+    #070b17;
+
+  color: #f8fafc;
+  overflow-x: hidden;
+}
+
+/* =========================================================
+   MAIN CONTAINER
+========================================================= */
+
+.messages-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+  box-sizing: border-box;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(15, 23, 42, 0.96),
+      rgba(15, 23, 42, 0.78)
+    );
+
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 18px;
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.35);
+
+  backdrop-filter: blur(14px);
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   BACK TO DASHBOARD
+========================================================= */
+
+.messages-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: auto;
+  min-width: 175px;
+  min-height: 46px;
+
+  margin: 0 0 25px 0;
+  padding: 10px 18px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.messages-back-button button {
+  background: transparent !important;
+  color: #e2e8f0 !important;
+
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+
+  font-family: inherit !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  cursor: pointer;
+}
+
+.messages-back-button:hover {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #ffffff;
+
+  transform: translateX(-3px);
+}
+
+.messages-back-button:hover button {
+  background: transparent !important;
+  color: #ffffff !important;
+}
+
+/* =========================================================
+   CHAT HEADER
+========================================================= */
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding: 20px 22px;
+
+  background: rgba(15, 23, 42, 0.94);
+
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+/* =========================================================
+   USER INFO
+========================================================= */
+
+.chat-user-info {
+  display: flex;
+  align-items: center;
+
+  gap: 14px;
+  min-width: 0;
+}
+
+.chat-avatar {
+  width: 54px;
+  height: 54px;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #22d3ee
+  );
+
+  color: #ffffff;
+
+  font-size: 18px;
+  font-weight: 800;
+
+  box-shadow:
+    0 8px 25px rgba(59, 130, 246, 0.22);
+}
+
+.chat-user-details {
+  min-width: 0;
+}
+
+.chat-user-details h2,
+.chat-user-details h3 {
+  margin: 0 0 4px;
+
+  color: #f8fafc;
+
+  font-size: 28px;
+  font-weight: 800;
+
+  line-height: 1.1;
+}
+
+.chat-user-details p {
+  margin: 0 0 5px;
+
+  color: #e2e8f0;
+
+  font-size: 18px;
+}
+
+.online-status,
+.offline-status {
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  font-size: 13px;
+}
+
+.online-status {
+  color: #22c55e;
+}
+
+.offline-status {
+  color: #64748b;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: currentColor;
+}
+
+/* =========================================================
+   CHAT ACTIONS
+========================================================= */
+
+.chat-actions {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  flex-shrink: 0;
+}
+
+.chat-actions button {
+  width: 48px;
+  height: 48px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 11px;
+
+  background: rgba(30, 41, 59, 0.75);
+
+  color: #94a3b8;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chat-actions button:hover {
+  background: rgba(59, 130, 246, 0.12);
+
+  border-color: rgba(59, 130, 246, 0.3);
+
+  color: #60a5fa;
+
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   CHAT BODY
+========================================================= */
+
+.chat-body {
+  min-height: 500px;
+  max-height: 620px;
+
+  padding: 28px 26px;
+
+  box-sizing: border-box;
+
+  overflow-y: auto;
+
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(59, 130, 246, 0.04),
+      transparent 35%
+    ),
+    #070b17;
+}
+
+.chat-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-body::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+}
+
+/* =========================================================
+   DATE DIVIDER
+========================================================= */
+
+.date-divider {
+  display: flex;
+  align-items: center;
+
+  gap: 14px;
+
+  margin: 14px 0 30px;
+
+  color: #64748b;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.date-divider::before,
+.date-divider::after {
+  content: "";
+
+  flex: 1;
+
+  height: 1px;
+
+  background: rgba(148, 163, 184, 0.12);
+}
+
+/* =========================================================
+   MESSAGE ROW
+========================================================= */
+
+.message-row {
+  display: flex;
+
+  width: 100%;
+
+  margin-bottom: 18px;
+
+  gap: 10px;
+}
+
+.message-row-me {
+  justify-content: flex-end;
+}
+
+.message-row-other {
+  justify-content: flex-start;
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  align-self: flex-end;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #22d3ee
+  );
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.message-content {
+  max-width: min(72%, 560px);
+
+  min-width: 0;
+}
+
+/* =========================================================
+   MESSAGE BUBBLES
+========================================================= */
+
+.message-bubble {
+  padding: 14px 17px;
+
+  border-radius: 15px;
+
+  font-size: 14px;
+  line-height: 1.55;
+
+  overflow-wrap: anywhere;
+}
+
+.message-bubble-other {
+  background: #0f172a;
+
+  border: 1px solid rgba(148, 163, 184, 0.12);
+
+  color: #cbd5e1;
+
+  border-bottom-left-radius: 5px;
+}
+
+.message-bubble-me {
+  background: linear-gradient(
+    135deg,
+    #2563eb,
+    #3b82f6
+  );
+
+  color: #ffffff;
+
+  border-bottom-right-radius: 5px;
+
+  box-shadow:
+    0 8px 25px rgba(37, 99, 235, 0.18);
+}
+
+/* =========================================================
+   MESSAGE META
+========================================================= */
+
+.message-meta {
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  margin-top: 5px;
+
+  color: #64748b;
+
+  font-size: 11px;
+}
+
+.message-meta-me {
+  justify-content: flex-end;
+}
+
+/* =========================================================
+   FILE MESSAGE
+========================================================= */
+
+.message-file {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  min-width: 0;
+
+  padding: 11px 13px;
+
+  border-radius: 11px;
+}
+
+.message-file-me {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.message-file-other {
+  background: rgba(30, 41, 59, 0.7);
+
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.message-file-icon {
+  width: 36px;
+  height: 36px;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 8px;
+
+  background: rgba(59, 130, 246, 0.12);
+
+  color: #60a5fa;
+}
+
+.message-file-info {
+  min-width: 0;
+}
+
+.message-file-info strong {
+  display: block;
+
+  max-width: 180px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 12px;
+}
+
+.message-file-info span {
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.file-check {
+  margin-left: auto;
+
+  color: #22c55e;
+}
+
+/* =========================================================
+   MESSAGE INPUT AREA
+========================================================= */
+
+.message-input-area {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  width: 100%;
+
+  min-height: 88px;
+
+  padding: 16px 22px;
+
+  box-sizing: border-box;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+/* =========================================================
+   MESSAGE INPUT
+========================================================= */
+
+.message-input-area input,
+.message-input-area textarea,
+.message-input {
+  flex: 1;
+
+  width: 100%;
+
+  min-width: 0;
+  min-height: 52px;
+
+  box-sizing: border-box;
+
+  padding: 13px 17px;
+
+  border: 1px solid rgba(148, 163, 184, 0.22);
+
+  border-radius: 11px;
+
+  outline: none;
+
+  background: #070b17;
+
+  color: #f8fafc;
+
+  font-family: inherit;
+
+  font-size: 15px;
+
+  line-height: 1.4;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.message-input-area input::placeholder,
+.message-input-area textarea::placeholder,
+.message-input::placeholder {
+  color: #64748b;
+
+  font-size: 15px;
+}
+
+.message-input-area input:focus,
+.message-input-area textarea:focus,
+.message-input:focus {
+  border-color: #3b82f6;
+
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* =========================================================
+   ATTACHMENT BUTTON
+========================================================= */
+
+.attachment-button {
+  width: 52px !important;
+  height: 52px !important;
+
+  min-width: 52px !important;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0 !important;
+
+  border: 1px solid rgba(148, 163, 184, 0.18);
+
+  border-radius: 11px;
+
+  background: rgba(30, 41, 59, 0.8);
+
+  color: #94a3b8;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+.attachment-button:hover {
+  background: rgba(59, 130, 246, 0.12);
+
+  border-color: rgba(59, 130, 246, 0.35);
+
+  color: #60a5fa;
+}
+
+/* =========================================================
+   SEND BUTTON
+========================================================= */
+
+.send-button {
+  width: 52px !important;
+  height: 52px !important;
+
+  min-width: 52px !important;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0 !important;
+
+  border: none;
+
+  border-radius: 11px;
+
+  background: #3b82f6;
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 8px 25px rgba(59, 130, 246, 0.2);
+
+  transition: all 0.2s ease;
+}
+
+.send-button:hover {
+  background: #2563eb;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 12px 30px rgba(59, 130, 246, 0.28);
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+/* =========================================================
+   POPUPS
+========================================================= */
+
+.profile-popup,
+.more-menu,
+.shared-files-popup {
+  position: absolute;
+
+  z-index: 50;
+
+  background: #0f172a;
+
+  border: 1px solid rgba(148, 163, 184, 0.15);
+
+  border-radius: 14px;
+
+  box-shadow:
+    0 20px 55px rgba(0, 0, 0, 0.45);
+}
+
+/* =========================================================
+   PROFILE POPUP
+========================================================= */
+
+.profile-popup {
+  top: 78px;
+  right: 20px;
+
+  width: 280px;
+
+  padding: 20px;
+}
+
+/* =========================================================
+   MORE MENU
+========================================================= */
+
+.more-menu {
+  top: 78px;
+  right: 20px;
+
+  width: 210px;
+
+  padding: 8px;
+
+  box-sizing: border-box;
+}
+
+/* IMPORTANT:
+   These are the actual buttons inside More Menu.
+*/
+
+.more-menu > button {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 11px 10px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #cbd5e1;
+
+  font-family: inherit;
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  box-sizing: border-box;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.more-menu > button:hover {
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #60a5fa;
+}
+
+.more-menu > button svg {
+  flex-shrink: 0;
+}
+
+.more-menu .danger-menu-item {
+  color: #f87171;
+}
+
+.more-menu .danger-menu-item:hover {
+  background: rgba(239, 68, 68, 0.1);
+
+  color: #fca5a5;
+}
+
+.menu-divider {
+  height: 1px;
+
+  margin: 6px 4px;
+
+  background: rgba(148, 163, 184, 0.12);
+}
+
+/* =========================================================
+   SHARED FILES POPUP
+========================================================= */
+
+.shared-files-popup {
+  top: 78px;
+  right: 20px;
+
+  width: min(340px, calc(100% - 40px));
+
+  padding: 18px;
+
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   ATTACHMENT MENU
+========================================================= */
+
+/*
+   THIS IS THE IMPORTANT FIX.
+
+   Your JSX has:
+
+   <div className="attachment-menu">
+      <button>...</button>
+      <button>...</button>
+      <button>...</button>
+      <button>...</button>
+   </div>
+
+   The buttons don't have their own className.
+
+   So we style them using:
+
+   .attachment-menu > button
+*/
+
+.attachment-menu {
+  position: absolute;
+
+  bottom: 82px;
+  left: 20px;
+
+  z-index: 100;
+
+  width: 270px;
+
+  padding: 8px;
+
+  box-sizing: border-box;
+
+  background: #0f172a;
+
+  border: 1px solid rgba(148, 163, 184, 0.18);
+
+  border-radius: 14px;
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55);
+
+  backdrop-filter: blur(14px);
+}
+
+/* EVERY ATTACHMENT BUTTON */
+
+.attachment-menu > button {
+  width: 100%;
+
+  min-height: 64px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 10px;
+
+  margin: 0;
+
+  box-sizing: border-box;
+
+  border: none !important;
+
+  border-radius: 10px;
+
+  outline: none !important;
+
+  background: transparent !important;
+
+  color: #e2e8f0 !important;
+
+  font-family: inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  appearance: none;
+
+  -webkit-appearance: none;
+
+  box-shadow: none !important;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+/* HOVER */
+
+.attachment-menu > button:hover {
+  background: rgba(59, 130, 246, 0.12) !important;
+
+  color: #ffffff !important;
+}
+
+/* ICON BOX */
+
+.attachment-menu .attachment-menu-icon {
+  width: 40px;
+
+  height: 40px;
+
+  min-width: 40px;
+
+  flex-shrink: 0;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 9px;
+
+  background: rgba(59, 130, 246, 0.12);
+
+  color: #60a5fa;
+
+  box-sizing: border-box;
+}
+
+/* DIFFERENT ICON BACKGROUNDS */
+
+.attachment-menu .document-icon {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+}
+
+.attachment-menu .photo-icon {
+  background: rgba(34, 211, 238, 0.1);
+  color: #22d3ee;
+}
+
+.attachment-menu .camera-icon {
+  background: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+}
+
+.attachment-menu .audio-icon {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+}
+
+/* TEXT AREA */
+
+.attachment-menu .attachment-menu-text {
+  min-width: 0;
+
+  flex: 1;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  gap: 3px;
+}
+
+/* TITLE */
+
+.attachment-menu .attachment-menu-text strong {
+  display: block;
+
+  color: #f8fafc !important;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  line-height: 1.2;
+}
+
+/* SMALL DESCRIPTION */
+
+.attachment-menu .attachment-menu-text small {
+  display: block;
+
+  color: #64748b !important;
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+  line-height: 1.3;
+}
+
+/* HOVER TEXT */
+
+.attachment-menu > button:hover
+.attachment-menu-text strong {
+  color: #ffffff !important;
+}
+
+.attachment-menu > button:hover
+.attachment-menu-text small {
+  color: #94a3b8 !important;
+}
+
+/* =========================================================
+   SEARCH BAR
+========================================================= */
+
+.chat-search-bar {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 12px 18px;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.chat-search-bar > svg {
+  flex-shrink: 0;
+
+  color: #64748b;
+}
+
+.chat-search-bar input {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 10px 12px;
+
+  border: 1px solid rgba(148, 163, 184, 0.2);
+
+  border-radius: 8px;
+
+  outline: none;
+
+  background: #070b17;
+
+  color: #f8fafc;
+
+  font-family: inherit;
+
+  font-size: 14px;
+}
+
+.chat-search-bar input:focus {
+  border-color: #3b82f6;
+}
+
+.chat-search-bar input::placeholder {
+  color: #64748b;
+}
+
+.chat-search-bar button {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #94a3b8;
+
+  cursor: pointer;
+}
+
+.chat-search-bar button:hover {
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   SHARED FILES PANEL
+========================================================= */
+
+.shared-files-panel {
+  padding: 18px;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.shared-files-header {
+  display: flex;
+
+  align-items: flex-start;
+
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 15px;
+}
+
+.shared-files-label {
+  margin: 0;
+
+  color: #60a5fa;
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.12em;
+}
+
+.shared-files-header h3 {
+  margin: 5px 0 0;
+
+  color: #f8fafc;
+
+  font-size: 16px;
+}
+
+.shared-files-header > button {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #94a3b8;
+
+  cursor: pointer;
+}
+
+.shared-files-header > button:hover {
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   SHARED FILE LIST
+========================================================= */
+
+.shared-files-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.shared-file-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px;
+
+  border: 1px solid rgba(148, 163, 184, 0.1);
+
+  border-radius: 9px;
+
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.shared-file-icon {
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 8px;
+
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #60a5fa;
+}
+
+.shared-file-info {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.shared-file-info strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  color: #e2e8f0;
+
+  font-size: 12px;
+}
+
+.shared-file-info span,
+.shared-file-info small {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.shared-file-time {
+  flex-shrink: 0;
+
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.no-shared-files {
+  padding: 25px 10px;
+
+  text-align: center;
+
+  color: #64748b;
+}
+
+.no-shared-files svg {
+  color: #475569;
+}
+
+.no-shared-files h4 {
+  margin: 10px 0 5px;
+
+  color: #cbd5e1;
+
+  font-size: 14px;
+}
+
+.no-shared-files p {
+  margin: 0;
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   BLOCKED USER
+========================================================= */
+
+.blocked-user-banner {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 8px;
+
+  padding: 10px;
+
+  background: rgba(239, 68, 68, 0.08);
+
+  border-bottom: 1px solid rgba(239, 68, 68, 0.15);
+
+  color: #fca5a5;
+
+  font-size: 13px;
+}
+
+/* =========================================================
+   NO SEARCH RESULTS
+========================================================= */
+
+.no-search-results {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-height: 250px;
+
+  text-align: center;
+
+  color: #64748b;
+}
+
+.no-search-results svg {
+  margin-bottom: 12px;
+
+  color: #475569;
+}
+
+.no-search-results h3 {
+  margin: 0 0 5px;
+
+  color: #cbd5e1;
+
+  font-size: 16px;
+}
+
+.no-search-results p {
+  margin: 0;
+
+  font-size: 12px;
+}
+
+/* =========================================================
+   SELECTED FILE
+========================================================= */
+
+.selected-file-container {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 18px;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.selected-file-icon {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 8px;
+
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #60a5fa;
+}
+
+.selected-file-info {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.selected-file-info strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  color: #e2e8f0;
+
+  font-size: 12px;
+}
+
+.selected-file-info span {
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.selected-file-container > button {
+  width: 32px;
+  height: 32px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #94a3b8;
+
+  cursor: pointer;
+}
+
+.selected-file-container > button:hover {
+  background: rgba(239, 68, 68, 0.1);
+
+  color: #f87171;
+}
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 768px) {
+  .messages-page {
+    padding: 30px 18px 40px;
+  }
+
+  .messages-back-button {
+    min-width: 170px;
+
+    min-height: 45px;
+
+    font-size: 14px;
+  }
+
+  .chat-header {
+    padding: 17px;
+  }
+
+  .chat-user-details h2,
+  .chat-user-details h3 {
+    font-size: 24px;
+  }
+
+  .chat-user-details p {
+    font-size: 16px;
+  }
+
+  .chat-actions button {
+    width: 44px;
+
+    height: 44px;
+  }
+
+  .chat-body {
+    min-height: 430px;
+
+    padding: 22px 18px;
+  }
+
+  .message-content {
+    max-width: 78%;
+  }
+
+  .message-input-area {
+    min-height: 82px;
+
+    padding: 14px;
+  }
+
+  .message-input-area input,
+  .message-input-area textarea,
+  .message-input {
+    min-height: 50px;
+
+    font-size: 14px;
+  }
+
+  .attachment-menu {
+    width: 250px;
+  }
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 520px) {
+  .messages-page {
+    padding: 25px 10px 30px;
+  }
+
+  .messages-back-button {
+    min-width: 165px;
+
+    min-height: 44px;
+
+    margin-bottom: 18px;
+
+    padding: 9px 15px;
+
+    font-size: 14px;
+  }
+
+  .messages-container {
+    border-radius: 14px;
+  }
+
+  .chat-header {
+    align-items: flex-start;
+
+    padding: 14px;
+
+    gap: 10px;
+  }
+
+  .chat-user-info {
+    gap: 10px;
+  }
+
+  .chat-avatar {
+    width: 44px;
+
+    height: 44px;
+
+    font-size: 15px;
+  }
+
+  .chat-user-details h2,
+  .chat-user-details h3 {
+    font-size: 20px;
+  }
+
+  .chat-user-details p {
+    font-size: 13px;
+  }
+
+  .online-status,
+  .offline-status {
+    font-size: 11px;
+  }
+
+  .chat-actions {
+    gap: 5px;
+  }
+
+  .chat-actions button {
+    width: 36px;
+
+    height: 36px;
+  }
+
+  .chat-body {
+    min-height: 400px;
+
+    padding: 18px 12px;
+  }
+
+  .message-content {
+    max-width: 82%;
+  }
+
+  .message-bubble {
+    padding: 10px 12px;
+
+    font-size: 12px;
+  }
+
+  .message-avatar {
+    width: 30px;
+
+    height: 30px;
+
+    font-size: 10px;
+  }
+
+  /* MESSAGE INPUT */
+
+  .message-input-area {
+    min-height: 70px;
+
+    gap: 8px;
+
+    padding: 10px;
+  }
+
+  .message-input-area input,
+  .message-input-area textarea,
+  .message-input {
+    min-height: 46px;
+
+    padding: 11px 12px;
+
+    font-size: 14px;
+  }
+
+  .message-input-area input::placeholder,
+  .message-input-area textarea::placeholder,
+  .message-input::placeholder {
+    font-size: 14px;
+  }
+
+  .attachment-button,
+  .send-button {
+    width: 44px !important;
+
+    height: 44px !important;
+
+    min-width: 44px !important;
+  }
+
+  /* ATTACHMENT MENU MOBILE */
+
+  .attachment-menu {
+    left: 10px;
+
+    bottom: 75px;
+
+    width: min(270px, calc(100% - 20px));
+
+    padding: 7px;
+  }
+
+  .attachment-menu > button {
+    min-height: 60px;
+
+    padding: 9px;
+  }
+
+  .attachment-menu .attachment-menu-icon {
+    width: 38px;
+
+    height: 38px;
+
+    min-width: 38px;
+  }
+
+  .attachment-menu .attachment-menu-text strong {
+    font-size: 13px;
+  }
+
+  .attachment-menu .attachment-menu-text small {
+    font-size: 10px;
+  }
+
+  .profile-popup,
+  .more-menu {
+    right: 10px;
+  }
+
+  .shared-files-popup {
+    right: 10px;
+  }
+}
+
+/* =========================================================
+   VERY SMALL PHONES
+========================================================= */
+
+@media (max-width: 360px) {
+  .messages-page {
+    padding: 20px 7px 25px;
+  }
+
+  .messages-back-button {
+    min-width: 155px;
+
+    min-height: 42px;
+
+    font-size: 13px;
+  }
+
+  .chat-header {
+    padding: 12px;
+  }
+
+  .chat-user-details h2,
+  .chat-user-details h3 {
+    font-size: 18px;
+  }
+
+  .chat-user-details p {
+    font-size: 12px;
+  }
+
+  .chat-actions {
+    gap: 3px;
+  }
+
+  .chat-actions button {
+    width: 32px;
+
+    height: 32px;
+  }
+
+  .chat-body {
+    padding: 15px 8px;
+  }
+
+  .message-content {
+    max-width: 85%;
+  }
+
+  .message-input-area {
+    padding: 8px;
+
+    gap: 6px;
+  }
+
+  .message-input-area input,
+  .message-input-area textarea,
+  .message-input {
+    min-height: 42px;
+
+    padding: 9px 10px;
+
+    font-size: 13px;
+  }
+
+  .attachment-button,
+  .send-button {
+    width: 38px !important;
+
+    height: 38px !important;
+
+    min-width: 38px !important;
+  }
+
+  /* VERY SMALL ATTACHMENT MENU */
+
+  .attachment-menu {
+    left: 7px;
+
+    bottom: 68px;
+
+    width: min(260px, calc(100% - 14px));
+  }
+
+  .attachment-menu > button {
+    min-height: 56px;
+
+    gap: 9px;
+
+    padding: 8px;
+  }
+
+  .attachment-menu .attachment-menu-icon {
+    width: 34px;
+
+    height: 34px;
+
+    min-width: 34px;
+  }
+
+  .attachment-menu .attachment-menu-text strong {
+    font-size: 12px;
+  }
+
+  .attachment-menu .attachment-menu-text small {
+    font-size: 9px;
+  }
+}
