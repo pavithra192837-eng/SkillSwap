@@ -178,7 +178,7 @@ const getMatchById = async (req, res) => {
           s.id,
           s.name,
           s.description,
-          us.level
+          CASE WHEN us.level = 'ADVANCED' THEN 'PROFICIENT' ELSE us.level END AS level
         FROM user_skills us
 
         INNER JOIN skills s
@@ -212,7 +212,7 @@ const getMatchById = async (req, res) => {
           s.id,
           s.name,
           s.description,
-          us.level
+          CASE WHEN us.level = 'ADVANCED' THEN 'PROFICIENT' ELSE us.level END AS level
         FROM user_skills us
 
         INNER JOIN skills s

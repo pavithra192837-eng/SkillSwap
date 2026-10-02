@@ -48,7 +48,7 @@ const getDashboard = async (req, res) => {
       SELECT
         us.id,
         us.type,
-        us.level,
+        CASE WHEN us.level = 'ADVANCED' THEN 'PROFICIENT' ELSE us.level END AS level,
         s.id AS skill_id,
         s.name,
         s.description

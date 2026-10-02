@@ -193,6 +193,45 @@ const initializeDatabase = async () => {
     );
 
     // ========================================
+    // 4A. DEFAULT SKILL CATALOG
+    // ========================================
+    const defaultCategories = [
+      ["Programming", "Programming languages and fundamentals"],
+      ["Web Development", "Frontend and web technologies"],
+      ["Database", "Data storage and SQL"],
+      ["Design", "UI/UX and visual design"],
+      ["Data & AI", "Data science and artificial intelligence"],
+      ["Communication", "Communication and presentation skills"],
+      ["Tools", "Developer and collaboration tools"]
+    ];
+    for (const [name, description] of defaultCategories) {
+      await connection.query(
+        `INSERT INTO skill_categories (name, description) VALUES (?, ?) ON DUPLICATE KEY UPDATE description = VALUES(description)`,
+        [name, description]
+      );
+    }
+
+    const defaultSkills = [
+      ["C", "Programming"], ["C++", "Programming"], ["Java", "Programming"],
+      ["Python", "Programming"], ["JavaScript", "Programming"], ["TypeScript", "Programming"],
+      ["React", "Web Development"], ["Node.js", "Web Development"], ["HTML", "Web Development"],
+      ["CSS", "Web Development"], ["SQL", "Database"], ["MongoDB", "Database"],
+      ["UI/UX Design", "Design"], ["Figma", "Design"], ["Graphic Design", "Design"],
+      ["Data Structures", "Programming"], ["Machine Learning", "Data & AI"],
+      ["Data Science", "Data & AI"], ["Git & GitHub", "Tools"], ["Flutter", "Web Development"],
+      ["Android Development", "Programming"], ["Communication", "Communication"],
+      ["Public Speaking", "Communication"]
+    ];
+    for (const [name, category] of defaultSkills) {
+      await connection.query(
+        `INSERT INTO skills (name, category_id, description) VALUES (?, (SELECT id FROM skill_categories WHERE name = ?), ?) ON DUPLICATE KEY UPDATE category_id = VALUES(category_id)`,
+        [name, category, `${name} skill`]
+      );
+    }
+
+    console.log("✅ default skill catalog ready");
+
+    // ========================================
     // 5. EXCHANGE REQUESTS
     // ========================================
     await connection.query(`
@@ -293,6 +332,36 @@ const initializeDatabase = async () => {
     console.log(
       "✅ sessions table ready"
     );
+
+    // ========================================
+    // 6A. LEARNING PROGRESS
+    // One row represents one direction of an exchange:
+    // the learner is taught a skill by the teacher.
+    // A learner must complete the session and then
+    // explicitly confirm the skill before adding it
+    // to their profile.
+    // ========================================
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS learning_progress (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id INT NOT NULL,
+        learner_id INT NOT NULL,
+        teacher_id INT NOT NULL,
+        skill_id INT NOT NULL,
+        status ENUM('IN_PROGRESS','COMPLETED','ADDED_TO_PROFILE') NOT NULL DEFAULT 'IN_PROGRESS',
+        completed_at DATETIME NULL,
+        added_to_profile_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (learner_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+        UNIQUE (session_id, learner_id, skill_id)
+      )
+    `);
+
+    console.log("✅ learning_progress table ready");
 
     // ========================================
     // 7. NOTIFICATIONS

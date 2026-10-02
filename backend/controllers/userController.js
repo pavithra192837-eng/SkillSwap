@@ -56,7 +56,7 @@ const getUserById = async (req, res) => {
         s.description,
 
         us.type,
-        us.level,
+        CASE WHEN us.level = 'ADVANCED' THEN 'PROFICIENT' ELSE us.level END AS level,
         us.created_at
 
       FROM user_skills us
@@ -208,9 +208,28 @@ const getMyProfile = async (req, res) => {
       });
     }
 
+    let reputation = { points: 0, rating: 0, completed_sessions: 0 };
+    try {
+      const [ratingData] = await pool.query(
+        `SELECT COALESCE(ROUND(AVG(rating), 2), 0) AS average_rating FROM ratings WHERE reviewee_id = ?`,
+        [userId]
+      );
+      const [completedData] = await pool.query(
+        `SELECT COUNT(*) AS completed_sessions FROM sessions WHERE status = 'COMPLETED' AND (user1_id = ? OR user2_id = ?)`,
+        [userId, userId]
+      );
+      reputation = {
+        points: 0,
+        rating: Number(ratingData[0]?.average_rating || 0),
+        completed_sessions: Number(completedData[0]?.completed_sessions || 0),
+      };
+    } catch (reputationError) {
+      console.warn("Profile reputation unavailable:", reputationError.message);
+    }
+
     return res.status(200).json({
       success: true,
-      user: users[0],
+      user: { ...users[0], reputation },
     });
   } catch (error) {
     console.error(

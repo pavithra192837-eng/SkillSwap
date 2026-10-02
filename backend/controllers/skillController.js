@@ -228,7 +228,7 @@ const getUserSkills = async (req, res) => {
         s.description,
 
         us.type,
-        us.level,
+        CASE WHEN us.level = 'ADVANCED' THEN 'PROFICIENT' ELSE us.level END AS level,
         us.created_at
 
       FROM user_skills us
@@ -322,16 +322,17 @@ const addUserSkill = async (req, res) => {
       "BEGINNER",
       "INTERMEDIATE",
       "ADVANCED",
+      "PROFICIENT",
     ];
 
-    const skillLevel =
-      level || "BEGINNER";
+    const requestedLevel = level || "BEGINNER";
+    const skillLevel = requestedLevel === "PROFICIENT" ? "ADVANCED" : requestedLevel;
 
-    if (!allowedLevels.includes(skillLevel)) {
+    if (!allowedLevels.includes(requestedLevel)) {
       return res.status(400).json({
         success: false,
         message:
-          "Skill level must be BEGINNER, INTERMEDIATE or ADVANCED",
+          "Skill level must be BEGINNER, INTERMEDIATE or PROFICIENT",
       });
     }
 
@@ -431,7 +432,7 @@ const addUserSkill = async (req, res) => {
           skill.description,
 
         type,
-        level: skillLevel,
+        level: requestedLevel === "ADVANCED" ? "PROFICIENT" : requestedLevel,
       },
     });
   } catch (error) {

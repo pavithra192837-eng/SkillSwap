@@ -1,239 +1,25 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import "./Login.css";
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { getErrorMessage } from '../api';
+import './Login.css';
 
-function Login() {
+export default function Login() {
+  const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
-  const [errors, setErrors] = useState({});
-  const [loginError, setLoginError] = useState("");
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    // Remove error while typing
-    setErrors((prev) => ({
-      ...prev,
-      [name]: "",
-    }));
-
-    setLoginError("");
+  const submit = async (e) => {
+    e.preventDefault(); setError('');
+    if (!form.email || !form.password) return setError('Enter your email and password.');
+    try {
+      setBusy(true); await login(form.email.trim(), form.password);
+      navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
+    } catch (err) { setError(getErrorMessage(err, 'Login failed. Check your email and password.')); }
+    finally { setBusy(false); }
   };
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    // Email validation
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required.";
-    } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
-    ) {
-      newErrors.email = "Please enter a valid email address.";
-    }
-
-    // Password validation
-    if (!formData.password) {
-      newErrors.password = "Password is required.";
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must contain at least 6 characters.";
-    }
-
-    setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    setLoginError("");
-
-    if (!validateForm()) {
-      return;
-    }
-
-    /*
-      FRONTEND DEMO LOGIN
-
-      At this stage there is no backend/Firebase authentication connected.
-      So we only validate the form and continue to the dashboard.
-
-      Later this section will be replaced with:
-      API/Firebase authentication.
-    */
-
-    navigate("/dashboard");
-  };
-
-  return (
-    <main className="login-page">
-
-      <div className="login-container">
-
-        {/* LEFT SIDE */}
-        <section className="login-info">
-
-          <Link to="/" className="login-logo">
-            Skill<span>Swap</span>
-          </Link>
-
-          <div className="login-info-content">
-
-            <p className="login-label">
-              WELCOME BACK
-            </p>
-
-            <h1>
-              Continue your
-              <span> skill journey.</span>
-            </h1>
-
-            <p>
-              Connect with learners, share your knowledge,
-              and continue growing with the SkillSwap community.
-            </p>
-
-          </div>
-
-        </section>
-
-
-        {/* RIGHT SIDE */}
-        <section className="login-card">
-
-          <div className="login-heading">
-
-            <h2>
-              Welcome back
-            </h2>
-
-            <p>
-              Login to your SkillSwap account
-            </p>
-
-          </div>
-
-
-          {/* GENERAL LOGIN ERROR */}
-
-          {loginError && (
-            <div className="login-error-message">
-              {loginError}
-            </div>
-          )}
-
-
-          <form
-            className="login-form"
-            onSubmit={handleSubmit}
-            noValidate
-          >
-
-            {/* EMAIL */}
-
-            <div className="form-group">
-
-              <label htmlFor="email">
-                Email
-              </label>
-
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleChange}
-                className={errors.email ? "input-error" : ""}
-              />
-
-              {errors.email && (
-                <small className="field-error">
-                  {errors.email}
-                </small>
-              )}
-
-            </div>
-
-
-            {/* PASSWORD */}
-
-            <div className="form-group">
-
-              <div className="password-label">
-
-                <label htmlFor="password">
-                  Password
-                </label>
-
-                <Link to="/forgot-password">
-                  Forgot password?
-                </Link>
-
-              </div>
-
-              <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-                className={errors.password ? "input-error" : ""}
-              />
-
-              {errors.password && (
-                <small className="field-error">
-                  {errors.password}
-                </small>
-              )}
-
-            </div>
-
-
-            {/* LOGIN BUTTON */}
-
-            <button
-              type="submit"
-              className="login-submit"
-            >
-              Login
-            </button>
-
-          </form>
-
-
-          {/* SIGN UP */}
-
-          <div className="login-register">
-
-            <span>
-              Don't have an account?
-            </span>
-
-            <Link to="/register">
-              Sign Up
-            </Link>
-
-          </div>
-
-        </section>
-
-      </div>
-
-    </main>
-  );
+  return <main className="auth-page"><section className="auth-card login-layout"><div className="auth-brand-panel"><Link to="/" className="auth-logo">Skill<span>Swap</span></Link><p className="eyebrow">WELCOME BACK</p><h1>Continue your<br /><span>skill journey.</span></h1><p>Sign in to find matches, exchange requests, messages and live sessions.</p></div><div className="auth-form-panel"><div className="auth-heading"><h2>Sign in</h2><p>Use the account you created on SkillSwap.</p></div>{error && <div className="form-alert">{error}</div>}<form onSubmit={submit} className="clean-form"><label>Email<input type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label><label>Password<input type="password" autoComplete="current-password" placeholder="Your password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></label><button className="primary-submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button></form><p className="auth-switch">New to SkillSwap? <Link to="/register">Create an account</Link></p></div></section></main>;
 }
-
-export default Login;

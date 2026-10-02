@@ -35,6 +35,8 @@ const createSession = async (req, res) => {
         id,
         sender_id,
         receiver_id,
+        offered_skill_id,
+        requested_skill_id,
         status
       FROM exchange_requests
       WHERE id = ?
@@ -115,6 +117,24 @@ const createSession = async (req, res) => {
         user2Id,
         scheduled_at,
         meeting_id || null,
+      ]
+    );
+
+    // Each exchange creates two learning directions:
+    // receiver learns the sender's offered skill;
+    // sender learns the receiver's requested skill.
+    await pool.query(
+      `
+      INSERT INTO learning_progress
+      (session_id, learner_id, teacher_id, skill_id, status)
+      VALUES
+      (?, ?, ?, ?, 'IN_PROGRESS'),
+      (?, ?, ?, ?, 'IN_PROGRESS')
+      ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP
+      `,
+      [
+        result.insertId, request.receiver_id, request.sender_id, request.offered_skill_id,
+        result.insertId, request.sender_id, request.receiver_id, request.requested_skill_id,
       ]
     );
 

@@ -18,6 +18,7 @@ const sessionRoutes = require("./routes/sessionRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const ratingRoutes = require("./routes/ratingRoutes");
+const learningRoutes = require("./routes/learningRoutes");
 
 // =========================
 // APP
@@ -125,6 +126,11 @@ app.use(
 app.use(
   "/api/ratings",
   ratingRoutes
+);
+
+app.use(
+  "/api/learning",
+  learningRoutes
 );
 
 // =========================

@@ -262,3 +262,23 @@ CREATE TABLE IF NOT EXISTS ratings (
     )
 );
 
+
+-- Learning progress is created for each direction of an accepted exchange.
+-- The API exposes ADVANCED as the user-facing label PROFICIENT.
+CREATE TABLE IF NOT EXISTS learning_progress (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL,
+    learner_id INT NOT NULL,
+    teacher_id INT NOT NULL,
+    skill_id INT NOT NULL,
+    status ENUM('IN_PROGRESS','COMPLETED','ADDED_TO_PROFILE') DEFAULT 'IN_PROGRESS',
+    completed_at DATETIME NULL,
+    added_to_profile_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (learner_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+    UNIQUE (session_id, learner_id, skill_id)
+);

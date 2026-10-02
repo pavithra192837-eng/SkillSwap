@@ -1,259 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Bell,
-  CheckCheck,
-  UserPlus,
-  MessageCircle,
-  Calendar,
-  Star,
-  Users,
-  Video,
-  ArrowLeft,
-} from "lucide-react";
-
+import { Bell, CheckCheck, UserPlus, MessageCircle, Calendar, Star, Users, Video, ArrowLeft, RefreshCw } from "lucide-react";
+import api, { getErrorMessage } from "../api";
 import "./Notifications.css";
 
-function Notifications() {
-  const navigate = useNavigate();
-
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "match",
-      title: "New Skill Match",
-      description: "You matched with Arun Kumar based on your skills.",
-      time: "10 minutes ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      type: "request",
-      title: "New Exchange Request",
-      description: "Priya Sharma sent you a skill exchange request.",
-      time: "1 hour ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      type: "message",
-      title: "New Message",
-      description: "You have a new message from Rahul Raj.",
-      time: "2 hours ago",
-      unread: true,
-    },
-    {
-      id: 4,
-      type: "session",
-      title: "Upcoming Session",
-      description: "Your Python Basics session starts in 30 minutes.",
-      time: "3 hours ago",
-      unread: false,
-    },
-    {
-      id: 5,
-      type: "accepted",
-      title: "Request Accepted",
-      description: "Arun Kumar accepted your skill exchange request.",
-      time: "Yesterday",
-      unread: false,
-    },
-    {
-      id: 6,
-      type: "completed",
-      title: "Session Completed",
-      description: "Your Python Basics session has been completed.",
-      time: "Yesterday",
-      unread: false,
-    },
-  ]);
-
-  const getIcon = (type) => {
-    switch (type) {
-      case "match":
-        return <Users size={19} />;
-
-      case "request":
-        return <UserPlus size={19} />;
-
-      case "message":
-        return <MessageCircle size={19} />;
-
-      case "session":
-        return <Calendar size={19} />;
-
-      case "accepted":
-        return <CheckCheck size={19} />;
-
-      case "completed":
-        return <Star size={19} />;
-
-      case "call":
-        return <Video size={19} />;
-
-      default:
-        return <Bell size={19} />;
-    }
-  };
-
-  const markAsRead = (id) => {
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.id === id
-          ? { ...notification, unread: false }
-          : notification
-      )
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications((current) =>
-      current.map((notification) => ({
-        ...notification,
-        unread: false,
-      }))
-    );
-  };
-
-  const unreadCount = notifications.filter(
-    (notification) => notification.unread
-  ).length;
-
-  return (
-    <main className="notifications-page">
-
-      {/* TOP BAR */}
-      <header className="notifications-topbar">
-
-        <button
-          className="notifications-back"
-          onClick={() => navigate("/dashboard")}
-        >
-          <ArrowLeft size={19} />
-        </button>
-
-        <div className="notifications-title-area">
-
-          <div className="notifications-title-icon">
-            <Bell size={20} />
-          </div>
-
-          <div>
-            <h1>Notifications</h1>
-
-            <p>
-              Stay updated with your SkillSwap activity
-            </p>
-          </div>
-
-        </div>
-
-        <button
-          className="mark-all-button"
-          onClick={markAllAsRead}
-        >
-          <CheckCheck size={17} />
-          Mark all as read
-        </button>
-
-      </header>
-
-      {/* CONTENT */}
-      <section className="notifications-container">
-
-        {/* SUMMARY */}
-        <div className="notifications-summary">
-
-          <div>
-            <span>ALL NOTIFICATIONS</span>
-            <strong>{notifications.length}</strong>
-          </div>
-
-          <div>
-            <span>UNREAD</span>
-            <strong>{unreadCount}</strong>
-          </div>
-
-        </div>
-
-        {/* NOTIFICATION LIST */}
-        <div className="notifications-list">
-
-          {notifications.length === 0 ? (
-            <div className="empty-notifications">
-
-              <div className="empty-icon">
-                <Bell size={27} />
-              </div>
-
-              <h2>No notifications</h2>
-
-              <p>
-                You're all caught up. New activity will
-                appear here.
-              </p>
-
-            </div>
-          ) : (
-            notifications.map((notification) => (
-
-              <div
-                key={notification.id}
-                className={`notification-item ${
-                  notification.unread
-                    ? "notification-unread"
-                    : ""
-                }`}
-                onClick={() =>
-                  markAsRead(notification.id)
-                }
-              >
-
-                {/* ICON */}
-                <div
-                  className={`notification-icon notification-${notification.type}`}
-                >
-                  {getIcon(notification.type)}
-                </div>
-
-                {/* CONTENT */}
-                <div className="notification-content">
-
-                  <div className="notification-heading">
-
-                    <h3>
-                      {notification.title}
-                    </h3>
-
-                    {notification.unread && (
-                      <span className="unread-dot"></span>
-                    )}
-
-                  </div>
-
-                  <p>
-                    {notification.description}
-                  </p>
-
-                  <span className="notification-time">
-                    {notification.time}
-                  </span>
-
-                </div>
-
-                
-
-              </div>
-
-            ))
-          )}
-
-        </div>
-
-      </section>
-
-    </main>
-  );
+function typeName(value = "") { return String(value).toLowerCase(); }
+function timeText(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
-export default Notifications;
+export default function Notifications() {
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    try {
+      setError("");
+      const response = await api.get("/notifications");
+      setNotifications(response.data.notifications || []);
+    } catch (e) {
+      setError(getErrorMessage(e, "Could not load notifications."));
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const icon = (type) => {
+    const t = typeName(type);
+    if (t.includes("request")) return <UserPlus size={19} />;
+    if (t.includes("message")) return <MessageCircle size={19} />;
+    if (t.includes("session")) return <Calendar size={19} />;
+    if (t.includes("rating") || t.includes("completed")) return <Star size={19} />;
+    if (t.includes("call")) return <Video size={19} />;
+    if (t.includes("match")) return <Users size={19} />;
+    return <Bell size={19} />;
+  };
+
+  const markRead = async (id) => {
+    try {
+      await api.put(`/notifications/${id}/read`);
+      setNotifications((current) => current.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    } catch (e) { setError(getErrorMessage(e, "Could not update notification.")); }
+  };
+
+  const unread = notifications.filter((n) => !n.is_read).length;
+
+  return <main className="notifications-page">
+    <header className="notifications-topbar">
+      <button className="notifications-back" onClick={() => navigate("/dashboard")}><ArrowLeft size={19} /></button>
+      <div className="notifications-title-area"><div className="notifications-title-icon"><Bell size={20} /></div><div><h1>Notifications</h1><p>Live activity from your SkillSwap account</p></div></div>
+      <button className="mark-all-button" onClick={load} disabled={loading}><RefreshCw size={17} /> Refresh</button>
+    </header>
+    <section className="notifications-container">
+      {error && <div className="notification-item notification-unread"><div className="notification-content"><p>{error}</p></div></div>}
+      <div className="notifications-summary"><div><span>ALL NOTIFICATIONS</span><strong>{notifications.length}</strong></div><div><span>UNREAD</span><strong>{unread}</strong></div></div>
+      <div className="notifications-list">
+        {loading ? <div className="empty-notifications"><Bell size={27} /><h2>Loading notifications…</h2></div> : notifications.length === 0 ? <div className="empty-notifications"><div className="empty-icon"><Bell size={27} /></div><h2>No notifications</h2><p>New requests, sessions and account activity will appear here.</p></div> : notifications.map((notification) => <div key={notification.id} className={`notification-item ${!notification.is_read ? "notification-unread" : ""}`} onClick={() => !notification.is_read && markRead(notification.id)}>
+          <div className={`notification-icon notification-${typeName(notification.type)}`}>{icon(notification.type)}</div>
+          <div className="notification-content"><div className="notification-heading"><h3>{notification.title}</h3>{!notification.is_read && <span className="unread-dot" />}</div><p>{notification.message || notification.description || "SkillSwap activity update"}</p><span className="notification-time">{timeText(notification.created_at)}</span></div>
+        </div>)}
+      </div>
+    </section>
+  </main>;
+}

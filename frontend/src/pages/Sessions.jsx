@@ -1,236 +1,131 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CalendarDays, Clock3, MessageCircle, Video, X, RefreshCw, CheckCircle2 } from "lucide-react";
+import api, { getErrorMessage } from "../api";
+import { useAuth } from "../context/AuthContext";
 import "./Session.css";
 
-const initialSessions = [
-  {
-    id: 1,
-    partner: "Arun Kumar",
-    initials: "AK",
-    teach: "JavaScript",
-    learn: "UI/UX Design",
-    date: "October 3, 2026",
-    time: "10:00 AM - 11:00 AM",
-    mode: "Online",
-    status: "Upcoming",
-  },
-  {
-    id: 2,
-    partner: "Priya S",
-    initials: "PS",
-    teach: "React.js",
-    learn: "Python",
-    date: "October 5, 2026",
-    time: "4:00 PM - 5:00 PM",
-    mode: "Online",
-    status: "Upcoming",
-  },
-  {
-    id: 3,
-    partner: "Rahul M",
-    initials: "RM",
-    teach: "Java",
-    learn: "MongoDB",
-    date: "September 25, 2026",
-    time: "3:00 PM - 4:00 PM",
-    mode: "Online",
-    status: "Completed",
-  },
-  {
-    id: 4,
-    partner: "Divya R",
-    initials: "DR",
-    teach: "HTML & CSS",
-    learn: "React.js",
-    date: "September 20, 2026",
-    time: "11:00 AM - 12:00 PM",
-    mode: "Online",
-    status: "Completed",
-  },
-];
+function initials(name = "User") {
+  return name.split(" ").filter(Boolean).map(x => x[0]).join("").slice(0, 2).toUpperCase();
+}
+function dateText(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString([], { dateStyle: "medium" });
+}
+function timeText(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 
-function Sessions() {
+export default function Sessions() {
   const navigate = useNavigate();
-  const [sessions, setSessions] = useState(initialSessions);
-  const [activeTab, setActiveTab] = useState("upcoming");
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState([]);
+  const [tab, setTab] = useState("upcoming");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(null);
 
-  const upcomingSessions = sessions.filter(
-    (session) => session.status === "Upcoming"
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const r = await api.get("/sessions");
+      setSessions(r.data.sessions || []);
+    } catch (e) {
+      setError(getErrorMessage(e, "Could not load sessions."));
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const upcoming = useMemo(
+    () => sessions.filter(s => ["SCHEDULED", "ONGOING"].includes(s.status)),
+    [sessions]
   );
-
-  const completedSessions = sessions.filter(
-    (session) => session.status === "Completed"
+  const completed = useMemo(
+    () => sessions.filter(s => ["COMPLETED", "CANCELLED"].includes(s.status)),
+    [sessions]
   );
+  const displayed = tab === "upcoming" ? upcoming : completed;
 
-  const displayedSessions =
-    activeTab === "upcoming" ? upcomingSessions : completedSessions;
-
-  const handleCancel = (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel this session?"
-    );
-
-    if (!confirmed) return;
-
-    setSessions((currentSessions) =>
-      currentSessions.filter((session) => session.id !== id)
-    );
+  const cancel = async (id) => {
+    if (!window.confirm("Cancel this session?")) return;
+    try {
+      setBusy(id);
+      await api.delete(`/sessions/${id}`);
+      await load();
+    } catch (e) {
+      setError(getErrorMessage(e, "Could not cancel the session."));
+    } finally { setBusy(null); }
   };
 
-  const handleJoin = (session) => {
-    alert(`Joining session with ${session.partner}`);
+  const join = async (s) => {
+    const otherId = Number(s.user1_id) === Number(user?.id) ? Number(s.user2_id) : Number(s.user1_id);
+    const otherName = Number(s.user1_id) === Number(user?.id) ? s.user2_name : s.user1_name;
+    try {
+      setBusy(s.id);
+      if (s.status === "SCHEDULED") await api.put(`/sessions/${s.id}/start`);
+      navigate(`/video-call?userId=${otherId}&name=${encodeURIComponent(otherName || "SkillSwap user")}&sessionId=${s.id}`);
+    } catch (e) {
+      setError(getErrorMessage(e, "Could not start the session."));
+    } finally { setBusy(null); }
   };
 
   return (
     <div className="sessions-page">
-      <button
-  className="sessions-back-button"
-  onClick={() => navigate("/dashboard")}
->
-  ← Back to Dashboard
-</button>
-      {/* Header */}
+      <button className="sessions-back-button" onClick={() => navigate("/dashboard")}>← Back to Dashboard</button>
       <div className="sessions-header">
         <div>
           <p className="sessions-label">SKILLSWAP</p>
-          <h1>Sessions</h1>
-          <p className="sessions-subtitle">
-            Manage your skill exchange sessions and learning journey.
-          </p>
+          <h1>Your sessions</h1>
+          <p className="sessions-subtitle">Real sessions created from accepted exchange requests.</p>
         </div>
-
-        <div className="session-count">
-          <span>{upcomingSessions.length}</span>
-          <small>Upcoming</small>
-        </div>
+        <div className="session-count"><span>{upcoming.length}</span><small>Upcoming</small></div>
       </div>
 
-      {/* Tabs */}
-      <div className="session-tabs">
-        <button
-          className={activeTab === "upcoming" ? "active" : ""}
-          onClick={() => setActiveTab("upcoming")}
-        >
-          Upcoming
-          <span>{upcomingSessions.length}</span>
-        </button>
-
-        <button
-          className={activeTab === "completed" ? "active" : ""}
-          onClick={() => setActiveTab("completed")}
-        >
-          Completed
-          <span>{completedSessions.length}</span>
-        </button>
+      <div className="session-toolbar">
+        <div className="session-tabs">
+          <button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <span>{upcoming.length}</span></button>
+          <button className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>History <span>{completed.length}</span></button>
+        </div>
+        <button className="session-refresh" onClick={load} disabled={loading}><RefreshCw size={16}/> Refresh</button>
       </div>
 
-      {/* Sessions */}
-      <div className="sessions-list">
-        {displayedSessions.length > 0 ? (
-          displayedSessions.map((session) => (
-            <div className="session-card" key={session.id}>
-              {/* Partner */}
-              <div className="session-partner">
-                <div className="partner-avatar">{session.initials}</div>
+      {error && <div className="session-alert">{error}</div>}
 
-                <div>
-                  <h3>{session.partner}</h3>
-                  <p>Skill Exchange Partner</p>
-                </div>
-              </div>
-
-              {/* Exchange */}
-              <div className="session-exchange">
-                <div className="skill-box">
-                  <span className="skill-label">YOU TEACH</span>
-                  <strong>{session.teach}</strong>
-                </div>
-
-                <div className="exchange-icon">⇄</div>
-
-                <div className="skill-box">
-                  <span className="skill-label">YOU LEARN</span>
-                  <strong>{session.learn}</strong>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="session-details">
-                <div className="detail-item">
-                  <span className="detail-icon"></span>
-                  <div>
-                    <small>Date</small>
-                    <p>{session.date}</p>
-                  </div>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-icon"></span>
-                  <div>
-                    <small>Time</small>
-                    <p>{session.time}</p>
-                  </div>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-icon"></span>
-                  <div>
-                    <small>Mode</small>
-                    <p>{session.mode}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Status + Actions */}
-              <div className="session-actions">
-                <span
-                  className={`session-status ${
-                    session.status === "Upcoming"
-                      ? "status-upcoming"
-                      : "status-completed"
-                  }`}
-                >
-                  {session.status}
-                </span>
-
-                {session.status === "Upcoming" && (
-                  <div className="action-buttons">
-                    <button
-                      className="join-button"
-                      onClick={() => handleJoin(session)}
-                    >
-                      Join Session
-                    </button>
-
-                    <button
-                      className="cancel-button"
-                      onClick={() => handleCancel(session.id)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-
-                {session.status === "Completed" && (
-                  <button className="view-button">View Details</button>
-                )}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="empty-sessions">
-            <div className="empty-icon"></div>
-            <h3>No {activeTab} sessions</h3>
-            <p>
-              {activeTab === "upcoming"
-                ? "Your upcoming skill exchange sessions will appear here."
-                : "Your completed sessions will appear here."}
-            </p>
+      {loading ? <div className="empty-sessions"><Clock3 size={30}/><h3>Loading sessions…</h3></div> :
+      displayed.length ? <div className="sessions-list">{displayed.map(s => {
+        const uid = Number(user?.id);
+        const isUser1 = uid === Number(s.user1_id);
+        const otherName = isUser1 ? s.user2_name : s.user1_name;
+        const otherId = isUser1 ? s.user2_id : s.user1_id;
+        return <article className="session-card" key={s.id}>
+          <div className="session-partner">
+            <div className="partner-avatar">{initials(otherName)}</div>
+            <div><h3>{otherName}</h3><p>Skill exchange partner</p></div>
+            <span className={`session-status status-${s.status.toLowerCase()}`}>{s.status}</span>
           </div>
-        )}
-      </div>
+          <div className="session-details">
+            <div><CalendarDays size={18}/><span><small>Date</small><b>{dateText(s.scheduled_at)}</b></span></div>
+            <div><Clock3 size={18}/><span><small>Time</small><b>{timeText(s.scheduled_at)}</b></span></div>
+            <div><CheckCircle2 size={18}/><span><small>Request</small><b>#{s.request_id}</b></span></div>
+          </div>
+          <div className="session-actions">
+            <button className="secondary-session" onClick={() => navigate(`/messages?userId=${otherId}`)}><MessageCircle size={16}/> Message</button>
+            {["SCHEDULED","ONGOING"].includes(s.status) && <button className="join-button" disabled={busy === s.id} onClick={() => join(s)}><Video size={16}/>{busy === s.id ? "Opening…" : "Join video session"}</button>}
+            {s.status === "SCHEDULED" && <button className="cancel-button" disabled={busy === s.id} onClick={() => cancel(s.id)}><X size={16}/> Cancel</button>}
+          </div>
+        </article>;
+      })}</div> :
+      <div className="empty-sessions"><CalendarDays size={30}/><h3>No {tab === "upcoming" ? "upcoming" : "past"} sessions</h3><p>Accept an exchange request and schedule a session to see it here.</p></div>}
     </div>
   );
 }
-
-export default Sessions;
