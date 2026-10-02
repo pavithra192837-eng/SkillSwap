@@ -6,7 +6,6 @@
   min-height: calc(100vh - 72px);
   width: 100%;
   box-sizing: border-box;
-
   padding: 35px 24px 50px;
 
   background:
@@ -23,10 +22,8 @@
     #070b17;
 
   color: #f8fafc;
-
   overflow-x: hidden;
 }
-
 
 /* =========================================================
    MAIN CONTAINER
@@ -35,90 +32,10 @@
 .messages-container {
   width: 100%;
   max-width: 1200px;
-
   margin: 0 auto;
-
   position: relative;
-
-  box-sizing: border-box;
-}
-
-
-/* =========================================================
-   BACK TO DASHBOARD
-========================================================= */
-
-.messages-back-button,
-.messages-back,
-button[class*="back"],
-a[class*="back"] {
-  display: inline-flex !important;
-
-  align-items: center;
-  justify-content: center;
-
-  gap: 9px;
-
-  width: auto !important;
-  min-width: 175px !important;
-  min-height: 46px !important;
-
-  margin: 0 0 25px 0 !important;
-
-  padding: 10px 18px !important;
-
   box-sizing: border-box;
 
-  border: 1px solid rgba(148, 163, 184, 0.22) !important;
-
-  border-radius: 10px !important;
-
-  background: rgba(15, 23, 42, 0.9) !important;
-
-  color: #e2e8f0 !important;
-
-  font-family: inherit !important;
-
-  font-size: 15px !important;
-
-  font-weight: 600 !important;
-
-  line-height: 1.4 !important;
-
-  text-decoration: none !important;
-
-  cursor: pointer;
-
-  outline: none !important;
-
-  box-shadow: none !important;
-
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
-}
-
-.messages-back-button:hover,
-.messages-back:hover,
-button[class*="back"]:hover,
-a[class*="back"]:hover {
-  background: rgba(59, 130, 246, 0.14) !important;
-
-  border-color: rgba(59, 130, 246, 0.45) !important;
-
-  color: #ffffff !important;
-
-  transform: translateX(-3px);
-}
-
-
-/* =========================================================
-   CHAT CONTAINER
-========================================================= */
-
-.messages-container {
   background:
     linear-gradient(
       145deg,
@@ -127,7 +44,6 @@ a[class*="back"]:hover {
     );
 
   border: 1px solid rgba(148, 163, 184, 0.14);
-
   border-radius: 18px;
 
   box-shadow:
@@ -138,6 +54,73 @@ a[class*="back"]:hover {
   overflow: hidden;
 }
 
+/* =========================================================
+   BACK TO DASHBOARD
+========================================================= */
+
+.messages-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: auto;
+  min-width: 175px;
+  min-height: 46px;
+
+  margin: 0 0 25px 0;
+  padding: 10px 18px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.messages-back-button button {
+  background: transparent !important;
+  color: #e2e8f0 !important;
+
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+
+  font-family: inherit !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  cursor: pointer;
+}
+
+.messages-back-button:hover {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #ffffff;
+
+  transform: translateX(-3px);
+}
+
+.messages-back-button:hover button {
+  background: transparent !important;
+  color: #ffffff !important;
+}
 
 /* =========================================================
    CHAT HEADER
@@ -145,9 +128,7 @@ a[class*="back"]:hover {
 
 .chat-header {
   display: flex;
-
   align-items: center;
-
   justify-content: space-between;
 
   gap: 20px;
@@ -159,18 +140,15 @@ a[class*="back"]:hover {
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-
 /* =========================================================
    USER INFO
 ========================================================= */
 
 .chat-user-info {
   display: flex;
-
   align-items: center;
 
   gap: 14px;
-
   min-width: 0;
 }
 
@@ -181,7 +159,6 @@ a[class*="back"]:hover {
   flex-shrink: 0;
 
   display: grid;
-
   place-items: center;
 
   border-radius: 50%;
@@ -195,7 +172,6 @@ a[class*="back"]:hover {
   color: #ffffff;
 
   font-size: 18px;
-
   font-weight: 800;
 
   box-shadow:
@@ -206,13 +182,13 @@ a[class*="back"]:hover {
   min-width: 0;
 }
 
+.chat-user-details h2,
 .chat-user-details h3 {
   margin: 0 0 4px;
 
   color: #f8fafc;
 
   font-size: 28px;
-
   font-weight: 800;
 
   line-height: 1.1;
@@ -229,7 +205,6 @@ a[class*="back"]:hover {
 .online-status,
 .offline-status {
   display: flex;
-
   align-items: center;
 
   gap: 6px;
@@ -256,14 +231,12 @@ a[class*="back"]:hover {
   background: currentColor;
 }
 
-
 /* =========================================================
    CHAT ACTIONS
 ========================================================= */
 
 .chat-actions {
   display: flex;
-
   align-items: center;
 
   gap: 9px;
@@ -276,13 +249,11 @@ a[class*="back"]:hover {
   height: 48px;
 
   display: grid;
-
   place-items: center;
 
   padding: 0;
 
   border: 1px solid rgba(148, 163, 184, 0.15);
-
   border-radius: 11px;
 
   background: rgba(30, 41, 59, 0.75);
@@ -308,14 +279,12 @@ a[class*="back"]:hover {
   transform: translateY(-1px);
 }
 
-
 /* =========================================================
    CHAT BODY
 ========================================================= */
 
 .chat-body {
   min-height: 500px;
-
   max-height: 620px;
 
   padding: 28px 26px;
@@ -343,10 +312,8 @@ a[class*="back"]:hover {
 
 .chat-body::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.2);
-
   border-radius: 10px;
 }
-
 
 /* =========================================================
    DATE DIVIDER
@@ -354,7 +321,6 @@ a[class*="back"]:hover {
 
 .date-divider {
   display: flex;
-
   align-items: center;
 
   gap: 14px;
@@ -364,7 +330,6 @@ a[class*="back"]:hover {
   color: #64748b;
 
   font-size: 12px;
-
   font-weight: 700;
 }
 
@@ -378,7 +343,6 @@ a[class*="back"]:hover {
 
   background: rgba(148, 163, 184, 0.12);
 }
-
 
 /* =========================================================
    MESSAGE ROW
@@ -409,7 +373,6 @@ a[class*="back"]:hover {
   flex-shrink: 0;
 
   display: grid;
-
   place-items: center;
 
   align-self: flex-end;
@@ -425,7 +388,6 @@ a[class*="back"]:hover {
   color: #ffffff;
 
   font-size: 13px;
-
   font-weight: 800;
 }
 
@@ -434,7 +396,6 @@ a[class*="back"]:hover {
 
   min-width: 0;
 }
-
 
 /* =========================================================
    MESSAGE BUBBLES
@@ -446,7 +407,6 @@ a[class*="back"]:hover {
   border-radius: 15px;
 
   font-size: 14px;
-
   line-height: 1.55;
 
   overflow-wrap: anywhere;
@@ -477,14 +437,12 @@ a[class*="back"]:hover {
     0 8px 25px rgba(37, 99, 235, 0.18);
 }
 
-
 /* =========================================================
    MESSAGE META
 ========================================================= */
 
 .message-meta {
   display: flex;
-
   align-items: center;
 
   gap: 6px;
@@ -500,14 +458,12 @@ a[class*="back"]:hover {
   justify-content: flex-end;
 }
 
-
 /* =========================================================
    FILE MESSAGE
 ========================================================= */
 
 .message-file {
   display: flex;
-
   align-items: center;
 
   gap: 10px;
@@ -536,7 +492,6 @@ a[class*="back"]:hover {
   flex-shrink: 0;
 
   display: grid;
-
   place-items: center;
 
   border-radius: 8px;
@@ -556,9 +511,7 @@ a[class*="back"]:hover {
   max-width: 180px;
 
   overflow: hidden;
-
   text-overflow: ellipsis;
-
   white-space: nowrap;
 
   font-size: 12px;
@@ -576,7 +529,6 @@ a[class*="back"]:hover {
   color: #22c55e;
 }
 
-
 /* =========================================================
    MESSAGE INPUT AREA
 ========================================================= */
@@ -585,7 +537,6 @@ a[class*="back"]:hover {
   position: relative;
 
   display: flex;
-
   align-items: center;
 
   gap: 12px;
@@ -603,10 +554,8 @@ a[class*="back"]:hover {
   border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-
 /* =========================================================
    MESSAGE INPUT
-   Supports INPUT and TEXTAREA
 ========================================================= */
 
 .message-input-area input,
@@ -617,7 +566,6 @@ a[class*="back"]:hover {
   width: 100%;
 
   min-width: 0;
-
   min-height: 52px;
 
   box-sizing: border-box;
@@ -662,14 +610,12 @@ a[class*="back"]:hover {
     0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-
 /* =========================================================
    ATTACHMENT BUTTON
 ========================================================= */
 
 .attachment-button {
   width: 52px !important;
-
   height: 52px !important;
 
   min-width: 52px !important;
@@ -677,7 +623,6 @@ a[class*="back"]:hover {
   flex-shrink: 0;
 
   display: grid;
-
   place-items: center;
 
   padding: 0 !important;
@@ -703,14 +648,12 @@ a[class*="back"]:hover {
   color: #60a5fa;
 }
 
-
 /* =========================================================
    SEND BUTTON
 ========================================================= */
 
 .send-button {
   width: 52px !important;
-
   height: 52px !important;
 
   min-width: 52px !important;
@@ -718,7 +661,6 @@ a[class*="back"]:hover {
   flex-shrink: 0;
 
   display: grid;
-
   place-items: center;
 
   padding: 0 !important;
@@ -752,7 +694,6 @@ a[class*="back"]:hover {
   display: none;
 }
 
-
 /* =========================================================
    POPUPS
 ========================================================= */
@@ -774,9 +715,12 @@ a[class*="back"]:hover {
     0 20px 55px rgba(0, 0, 0, 0.45);
 }
 
+/* =========================================================
+   PROFILE POPUP
+========================================================= */
+
 .profile-popup {
   top: 78px;
-
   right: 20px;
 
   width: 280px;
@@ -784,64 +728,34 @@ a[class*="back"]:hover {
   padding: 20px;
 }
 
-.more-menu {
-  top: 78px;
-
-  right: 20px;
-
-  width: 190px;
-
-  padding: 8px;
-}
-
-.shared-files-popup {
-  top: 78px;
-
-  right: 20px;
-
-  width: min(340px, calc(100% - 40px));
-
-  padding: 18px;
-}
-
-
 /* =========================================================
-   ATTACHMENT MENU
+   MORE MENU
 ========================================================= */
 
-.attachment-menu {
-  position: absolute;
+.more-menu {
+  top: 78px;
+  right: 20px;
 
-  bottom: 82px;
-
-  left: 20px;
-
-  z-index: 50;
-
-  width: 190px;
+  width: 210px;
 
   padding: 8px;
 
-  background: #0f172a;
-
-  border: 1px solid rgba(148, 163, 184, 0.15);
-
-  border-radius: 12px;
-
-  box-shadow:
-    0 20px 50px rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
 }
 
-.attachment-menu-item {
-  display: flex;
+/* IMPORTANT:
+   These are the actual buttons inside More Menu.
+*/
 
-  align-items: center;
-
+.more-menu > button {
   width: 100%;
+
+  display: flex;
+  align-items: center;
 
   gap: 10px;
 
-  padding: 10px;
+  padding: 11px 10px;
 
   border: none;
 
@@ -851,65 +765,708 @@ a[class*="back"]:hover {
 
   color: #cbd5e1;
 
-  font: inherit;
+  font-family: inherit;
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+  text-align: left;
 
   cursor: pointer;
+
+  box-sizing: border-box;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
-.attachment-menu-item:hover {
+.more-menu > button:hover {
   background: rgba(59, 130, 246, 0.1);
 
   color: #60a5fa;
 }
 
-.attachment-menu-icon {
-  width: 30px;
+.more-menu > button svg {
+  flex-shrink: 0;
+}
 
-  height: 30px;
+.more-menu .danger-menu-item {
+  color: #f87171;
+}
+
+.more-menu .danger-menu-item:hover {
+  background: rgba(239, 68, 68, 0.1);
+
+  color: #fca5a5;
+}
+
+.menu-divider {
+  height: 1px;
+
+  margin: 6px 4px;
+
+  background: rgba(148, 163, 184, 0.12);
+}
+
+/* =========================================================
+   SHARED FILES POPUP
+========================================================= */
+
+.shared-files-popup {
+  top: 78px;
+  right: 20px;
+
+  width: min(340px, calc(100% - 40px));
+
+  padding: 18px;
+
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   ATTACHMENT MENU
+========================================================= */
+
+/*
+   THIS IS THE IMPORTANT FIX.
+
+   Your JSX has:
+
+   <div className="attachment-menu">
+      <button>...</button>
+      <button>...</button>
+      <button>...</button>
+      <button>...</button>
+   </div>
+
+   The buttons don't have their own className.
+
+   So we style them using:
+
+   .attachment-menu > button
+*/
+
+.attachment-menu {
+  position: absolute;
+
+  bottom: 82px;
+  left: 20px;
+
+  z-index: 100;
+
+  width: 270px;
+
+  padding: 8px;
+
+  box-sizing: border-box;
+
+  background: #0f172a;
+
+  border: 1px solid rgba(148, 163, 184, 0.18);
+
+  border-radius: 14px;
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55);
+
+  backdrop-filter: blur(14px);
+}
+
+/* EVERY ATTACHMENT BUTTON */
+
+.attachment-menu > button {
+  width: 100%;
+
+  min-height: 64px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 10px;
+
+  margin: 0;
+
+  box-sizing: border-box;
+
+  border: none !important;
+
+  border-radius: 10px;
+
+  outline: none !important;
+
+  background: transparent !important;
+
+  color: #e2e8f0 !important;
+
+  font-family: inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  appearance: none;
+
+  -webkit-appearance: none;
+
+  box-shadow: none !important;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+/* HOVER */
+
+.attachment-menu > button:hover {
+  background: rgba(59, 130, 246, 0.12) !important;
+
+  color: #ffffff !important;
+}
+
+/* ICON BOX */
+
+.attachment-menu .attachment-menu-icon {
+  width: 40px;
+
+  height: 40px;
+
+  min-width: 40px;
+
+  flex-shrink: 0;
 
   display: grid;
 
   place-items: center;
 
-  border-radius: 7px;
+  border-radius: 9px;
+
+  background: rgba(59, 130, 246, 0.12);
+
+  color: #60a5fa;
+
+  box-sizing: border-box;
+}
+
+/* DIFFERENT ICON BACKGROUNDS */
+
+.attachment-menu .document-icon {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+}
+
+.attachment-menu .photo-icon {
+  background: rgba(34, 211, 238, 0.1);
+  color: #22d3ee;
+}
+
+.attachment-menu .camera-icon {
+  background: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+}
+
+.attachment-menu .audio-icon {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+}
+
+/* TEXT AREA */
+
+.attachment-menu .attachment-menu-text {
+  min-width: 0;
+
+  flex: 1;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  gap: 3px;
+}
+
+/* TITLE */
+
+.attachment-menu .attachment-menu-text strong {
+  display: block;
+
+  color: #f8fafc !important;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  line-height: 1.2;
+}
+
+/* SMALL DESCRIPTION */
+
+.attachment-menu .attachment-menu-text small {
+  display: block;
+
+  color: #64748b !important;
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+  line-height: 1.3;
+}
+
+/* HOVER TEXT */
+
+.attachment-menu > button:hover
+.attachment-menu-text strong {
+  color: #ffffff !important;
+}
+
+.attachment-menu > button:hover
+.attachment-menu-text small {
+  color: #94a3b8 !important;
+}
+
+/* =========================================================
+   SEARCH BAR
+========================================================= */
+
+.chat-search-bar {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 12px 18px;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.chat-search-bar > svg {
+  flex-shrink: 0;
+
+  color: #64748b;
+}
+
+.chat-search-bar input {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 10px 12px;
+
+  border: 1px solid rgba(148, 163, 184, 0.2);
+
+  border-radius: 8px;
+
+  outline: none;
+
+  background: #070b17;
+
+  color: #f8fafc;
+
+  font-family: inherit;
+
+  font-size: 14px;
+}
+
+.chat-search-bar input:focus {
+  border-color: #3b82f6;
+}
+
+.chat-search-bar input::placeholder {
+  color: #64748b;
+}
+
+.chat-search-bar button {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #94a3b8;
+
+  cursor: pointer;
+}
+
+.chat-search-bar button:hover {
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   SHARED FILES PANEL
+========================================================= */
+
+.shared-files-panel {
+  padding: 18px;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.shared-files-header {
+  display: flex;
+
+  align-items: flex-start;
+
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 15px;
+}
+
+.shared-files-label {
+  margin: 0;
+
+  color: #60a5fa;
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.12em;
+}
+
+.shared-files-header h3 {
+  margin: 5px 0 0;
+
+  color: #f8fafc;
+
+  font-size: 16px;
+}
+
+.shared-files-header > button {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #94a3b8;
+
+  cursor: pointer;
+}
+
+.shared-files-header > button:hover {
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   SHARED FILE LIST
+========================================================= */
+
+.shared-files-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.shared-file-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px;
+
+  border: 1px solid rgba(148, 163, 184, 0.1);
+
+  border-radius: 9px;
+
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.shared-file-icon {
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 8px;
 
   background: rgba(59, 130, 246, 0.1);
 
   color: #60a5fa;
 }
 
-.attachment-menu-text {
-  font-size: 12px;
+.shared-file-info {
+  min-width: 0;
 
-  font-weight: 600;
+  flex: 1;
 }
 
+.shared-file-info strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  color: #e2e8f0;
+
+  font-size: 12px;
+}
+
+.shared-file-info span,
+.shared-file-info small {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.shared-file-time {
+  flex-shrink: 0;
+
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.no-shared-files {
+  padding: 25px 10px;
+
+  text-align: center;
+
+  color: #64748b;
+}
+
+.no-shared-files svg {
+  color: #475569;
+}
+
+.no-shared-files h4 {
+  margin: 10px 0 5px;
+
+  color: #cbd5e1;
+
+  font-size: 14px;
+}
+
+.no-shared-files p {
+  margin: 0;
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   BLOCKED USER
+========================================================= */
+
+.blocked-user-banner {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 8px;
+
+  padding: 10px;
+
+  background: rgba(239, 68, 68, 0.08);
+
+  border-bottom: 1px solid rgba(239, 68, 68, 0.15);
+
+  color: #fca5a5;
+
+  font-size: 13px;
+}
+
+/* =========================================================
+   NO SEARCH RESULTS
+========================================================= */
+
+.no-search-results {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-height: 250px;
+
+  text-align: center;
+
+  color: #64748b;
+}
+
+.no-search-results svg {
+  margin-bottom: 12px;
+
+  color: #475569;
+}
+
+.no-search-results h3 {
+  margin: 0 0 5px;
+
+  color: #cbd5e1;
+
+  font-size: 16px;
+}
+
+.no-search-results p {
+  margin: 0;
+
+  font-size: 12px;
+}
+
+/* =========================================================
+   SELECTED FILE
+========================================================= */
+
+.selected-file-container {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 18px;
+
+  background: rgba(15, 23, 42, 0.98);
+
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.selected-file-icon {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 8px;
+
+  background: rgba(59, 130, 246, 0.1);
+
+  color: #60a5fa;
+}
+
+.selected-file-info {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.selected-file-info strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  color: #e2e8f0;
+
+  font-size: 12px;
+}
+
+.selected-file-info span {
+  color: #64748b;
+
+  font-size: 10px;
+}
+
+.selected-file-container > button {
+  width: 32px;
+  height: 32px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #94a3b8;
+
+  cursor: pointer;
+}
+
+.selected-file-container > button:hover {
+  background: rgba(239, 68, 68, 0.1);
+
+  color: #f87171;
+}
 
 /* =========================================================
    TABLET
 ========================================================= */
 
 @media (max-width: 768px) {
-
   .messages-page {
     padding: 30px 18px 40px;
   }
 
-  .messages-back-button,
-  .messages-back,
-  button[class*="back"],
-  a[class*="back"] {
-    min-width: 170px !important;
+  .messages-back-button {
+    min-width: 170px;
 
-    min-height: 45px !important;
+    min-height: 45px;
 
-    font-size: 14px !important;
+    font-size: 14px;
   }
 
   .chat-header {
     padding: 17px;
   }
 
+  .chat-user-details h2,
   .chat-user-details h3 {
     font-size: 24px;
   }
@@ -947,32 +1504,31 @@ a[class*="back"]:hover {
 
     font-size: 14px;
   }
-}
 
+  .attachment-menu {
+    width: 250px;
+  }
+}
 
 /* =========================================================
    MOBILE
 ========================================================= */
 
 @media (max-width: 520px) {
-
   .messages-page {
     padding: 25px 10px 30px;
   }
 
-  .messages-back-button,
-  .messages-back,
-  button[class*="back"],
-  a[class*="back"] {
-    min-width: 165px !important;
+  .messages-back-button {
+    min-width: 165px;
 
-    min-height: 44px !important;
+    min-height: 44px;
 
-    margin-bottom: 18px !important;
+    margin-bottom: 18px;
 
-    padding: 9px 15px !important;
+    padding: 9px 15px;
 
-    font-size: 14px !important;
+    font-size: 14px;
   }
 
   .messages-container {
@@ -999,6 +1555,7 @@ a[class*="back"]:hover {
     font-size: 15px;
   }
 
+  .chat-user-details h2,
   .chat-user-details h3 {
     font-size: 20px;
   }
@@ -1046,8 +1603,7 @@ a[class*="back"]:hover {
     font-size: 10px;
   }
 
-
-  /* MESSAGE INPUT MOBILE */
+  /* MESSAGE INPUT */
 
   .message-input-area {
     min-height: 70px;
@@ -1082,6 +1638,40 @@ a[class*="back"]:hover {
     min-width: 44px !important;
   }
 
+  /* ATTACHMENT MENU MOBILE */
+
+  .attachment-menu {
+    left: 10px;
+
+    bottom: 75px;
+
+    width: min(270px, calc(100% - 20px));
+
+    padding: 7px;
+  }
+
+  .attachment-menu > button {
+    min-height: 60px;
+
+    padding: 9px;
+  }
+
+  .attachment-menu .attachment-menu-icon {
+    width: 38px;
+
+    height: 38px;
+
+    min-width: 38px;
+  }
+
+  .attachment-menu .attachment-menu-text strong {
+    font-size: 13px;
+  }
+
+  .attachment-menu .attachment-menu-text small {
+    font-size: 10px;
+  }
+
   .profile-popup,
   .more-menu {
     right: 10px;
@@ -1090,38 +1680,30 @@ a[class*="back"]:hover {
   .shared-files-popup {
     right: 10px;
   }
-
-  .attachment-menu {
-    left: 10px;
-  }
 }
-
 
 /* =========================================================
    VERY SMALL PHONES
 ========================================================= */
 
 @media (max-width: 360px) {
-
   .messages-page {
     padding: 20px 7px 25px;
   }
 
-  .messages-back-button,
-  .messages-back,
-  button[class*="back"],
-  a[class*="back"] {
-    min-width: 155px !important;
+  .messages-back-button {
+    min-width: 155px;
 
-    min-height: 42px !important;
+    min-height: 42px;
 
-    font-size: 13px !important;
+    font-size: 13px;
   }
 
   .chat-header {
     padding: 12px;
   }
 
+  .chat-user-details h2,
   .chat-user-details h3 {
     font-size: 18px;
   }
@@ -1172,26 +1754,38 @@ a[class*="back"]:hover {
 
     min-width: 38px !important;
   }
-}
-/* Fix white Back to Dashboard button */
-.messages-back-button button {
-  background: transparent !important;
-  color: #e2e8f0 !important;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
 
-  font-family: inherit !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
+  /* VERY SMALL ATTACHMENT MENU */
 
-  padding: 10px 16px !important;
-  margin: 0 !important;
+  .attachment-menu {
+    left: 7px;
 
-  cursor: pointer;
-}
+    bottom: 68px;
 
-.messages-back-button button:hover {
-  background: transparent !important;
-  color: #ffffff !important;
+    width: min(260px, calc(100% - 14px));
+  }
+
+  .attachment-menu > button {
+    min-height: 56px;
+
+    gap: 9px;
+
+    padding: 8px;
+  }
+
+  .attachment-menu .attachment-menu-icon {
+    width: 34px;
+
+    height: 34px;
+
+    min-width: 34px;
+  }
+
+  .attachment-menu .attachment-menu-text strong {
+    font-size: 12px;
+  }
+
+  .attachment-menu .attachment-menu-text small {
+    font-size: 9px;
+  }
 }

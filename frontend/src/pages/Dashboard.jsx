@@ -1,9 +1,11 @@
-// import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import "./Dashboard.css";
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const matches = [
@@ -219,16 +221,18 @@ function Dashboard() {
 
           <div className="dashboard-top-actions">
 
-            <button className="notification-button">
-              ♢
-              <span></span>
-            </button>
+            
 
             <div className="topbar-user">
 
-              <div className="topbar-avatar">
-                Y
-              </div>
+              <div
+  className="topbar-avatar"
+  onClick={() => navigate("/profile")}
+  role="button"
+  tabIndex={0}
+>
+  Y
+</div>
 
               <div>
                 <strong>Yuvarani</strong>
@@ -418,10 +422,9 @@ function Dashboard() {
                   </h2>
                 </div>
 
-                <button>
-                  Edit
-                </button>
-
+               <button onClick={() => navigate("/skill-setup")}>
+  Edit
+</button>
               </div>
 
               <div className="skill-group">
