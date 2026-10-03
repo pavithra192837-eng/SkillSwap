@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onDisconnect, onValue, push, ref, serverTimestamp, set } from 'firebase/database';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
@@ -32,6 +32,7 @@ export default function Messages() {
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [online, setOnline] = useState(false);
   const [sendingFile, setSendingFile] = useState(false);
+  const messagesScrollRef = useRef(null);
 
   const loadConnections = useCallback(async () => {
     try {
@@ -78,6 +79,17 @@ export default function Messages() {
     const unsubPresence = onValue(presenceRef, snap => setOnline(Boolean(snap.val()?.online)));
     return () => { unsubMessages(); unsubPresence(); };
   }, [selected, user.id, firebaseReady]);
+
+  // Keep the latest message visible automatically, including when a new
+  // message arrives from the other participant.
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const frame = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [messages, selected?.user_id]);
 
   const filtered = useMemo(() => connections.filter(c => `${c.name} ${c.department || ''}`.toLowerCase().includes(search.toLowerCase())), [connections, search]);
 
@@ -129,7 +141,7 @@ export default function Messages() {
         <header className="conversation-header"><div className="conversation-person"><div className="conversation-avatar large">{initials(selected.name)}</div><div><h3>{selected.name}</h3><span><i className={online ? 'online' : ''}/>{online ? 'Online now' : 'Offline'} · {selected.department || 'Student'}</span></div></div><div className="conversation-actions"><button title="Voice call" onClick={() => call('voice')}><Phone size={18}/></button><button title="Video call" onClick={() => call('video')}><Video size={18}/></button></div></header>
         {error && <div className="message-alert">{error}</div>}
         <div className="realtime-banner"><Wifi size={14}/>{firebaseReady ? 'Real-time messaging connected' : 'Connecting to real-time messaging…'}</div>
-        <div className="messages-scroll">
+        <div ref={messagesScrollRef} className="messages-scroll">
           {messages.length ? messages.map(m => <div className={`message-row ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}><div className="message-bubble">{m.text&&<span>{m.text}</span>}{m.attachment&&<a className="message-file" href={m.attachment.url} target="_blank" rel="noreferrer">{m.attachment.type?.startsWith('image/')?<img src={m.attachment.url} alt={m.attachment.name}/>:<span>📎</span>}<strong>{m.attachment.name}</strong><small>{Math.max(1,Math.round((m.attachment.size||0)/1024))} KB</small></a>}<small>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small></div></div>) : <div className="messages-zero"><div><MessageCircle size={24}/></div><h3>Start the exchange</h3><p>Say hello and agree on what you want to learn in your first session.</p></div>}
         </div>
         <form className="message-composer" onSubmit={send}><label className="message-attach" title="Send photo or document">📎<input type="file" hidden onChange={sendAttachment} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"/></label><input value={text} onChange={e => setText(e.target.value)} placeholder={`Message ${selected.name}…`} autoComplete="off"/><button disabled={!text.trim()||sendingFile}><Send size={17}/></button></form>
