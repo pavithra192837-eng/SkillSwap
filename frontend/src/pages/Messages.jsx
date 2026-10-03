@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { onDisconnect, onValue, push, ref, serverTimestamp, set } from 'firebase/database';
+import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { MessageCircle, Phone, Video, Search, Send, UsersRound, Wifi, Circle } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { firebaseAuth, realtimeDb, firebaseConfigured } from '../firebase';
+import { firebaseAuth, realtimeDb, firebaseConfigured, firebaseStorage } from '../firebase';
 import api, { getErrorMessage } from '../api';
 import { useAuth } from '../context/AuthContext';
 import './Messages.css';
@@ -30,6 +31,7 @@ export default function Messages() {
   const [error, setError] = useState('');
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [online, setOnline] = useState(false);
+  const [sendingFile, setSendingFile] = useState(false);
 
   const loadConnections = useCallback(async () => {
     try {
@@ -84,6 +86,21 @@ export default function Messages() {
     setParams({ userId: String(connection.user_id) });
   };
 
+  const sendAttachment = async e => {
+    const file = e.target.files?.[0]; e.target.value='';
+    if (!file || !selected) return;
+    if (!firebaseStorage) { setError('File sharing is not configured. Enable Firebase Storage.'); return; }
+    if (file.size > 20 * 1024 * 1024) { setError('Files must be 20 MB or smaller.'); return; }
+    try {
+      setSendingFile(true); setError(''); await ensureFirebase();
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      const path = storageRef(firebaseStorage, `chat-files/${chatId(user.id, selected.user_id)}/${Date.now()}-${safe}`);
+      await uploadBytes(path, file, { contentType:file.type || 'application/octet-stream' });
+      const url = await getDownloadURL(path);
+      await push(ref(realtimeDb, `chats/${chatId(user.id, selected.user_id)}/messages`), { senderId:Number(user.id), senderName:user.name, attachment:{url,name:file.name,size:file.size,type:file.type||'application/octet-stream'}, createdAt:Date.now() });
+    } catch(e) { setError(e.message || 'Could not send the file.'); } finally { setSendingFile(false); }
+  };
+
   const send = async e => {
     e.preventDefault();
     if (!text.trim() || !selected) return;
@@ -113,9 +130,9 @@ export default function Messages() {
         {error && <div className="message-alert">{error}</div>}
         <div className="realtime-banner"><Wifi size={14}/>{firebaseReady ? 'Real-time messaging connected' : 'Connecting to real-time messaging…'}</div>
         <div className="messages-scroll">
-          {messages.length ? messages.map(m => <div className={`message-row ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}><div className="message-bubble"><span>{m.text}</span><small>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small></div></div>) : <div className="messages-zero"><div><MessageCircle size={24}/></div><h3>Start the exchange</h3><p>Say hello and agree on what you want to learn in your first session.</p></div>}
+          {messages.length ? messages.map(m => <div className={`message-row ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}><div className="message-bubble">{m.text&&<span>{m.text}</span>}{m.attachment&&<a className="message-file" href={m.attachment.url} target="_blank" rel="noreferrer">{m.attachment.type?.startsWith('image/')?<img src={m.attachment.url} alt={m.attachment.name}/>:<span>📎</span>}<strong>{m.attachment.name}</strong><small>{Math.max(1,Math.round((m.attachment.size||0)/1024))} KB</small></a>}<small>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small></div></div>) : <div className="messages-zero"><div><MessageCircle size={24}/></div><h3>Start the exchange</h3><p>Say hello and agree on what you want to learn in your first session.</p></div>}
         </div>
-        <form className="message-composer" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} placeholder={`Message ${selected.name}…`} autoComplete="off"/><button disabled={!text.trim()}><Send size={17}/></button></form>
+        <form className="message-composer" onSubmit={send}><label className="message-attach" title="Send photo or document">📎<input type="file" hidden onChange={sendAttachment} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"/></label><input value={text} onChange={e => setText(e.target.value)} placeholder={`Message ${selected.name}…`} autoComplete="off"/><button disabled={!text.trim()||sendingFile}><Send size={17}/></button></form>
       </> : <div className="messages-zero"><div><MessageCircle size={28}/></div><h2>Your conversations</h2><p>Choose an accepted connection to chat, call or plan a session.</p></div>}
     </section>
   </div>;

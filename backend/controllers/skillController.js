@@ -362,6 +362,19 @@ const addUserSkill = async (req, res) => {
       });
     }
 
+    // A skill has one purpose in a student's profile. The same skill cannot
+    // be both something the student teaches and something they learn.
+    const [conflictingUserSkills] = await pool.query(
+      `SELECT id, type FROM user_skills WHERE user_id = ? AND skill_id = ? LIMIT 1`,
+      [userId, skill_id]
+    );
+    if (conflictingUserSkills.length > 0 && conflictingUserSkills[0].type !== type) {
+      return res.status(409).json({
+        success: false,
+        message: `This skill is already in your ${conflictingUserSkills[0].type === 'TEACH' ? 'teaching' : 'learning'} list. A skill cannot be both.`
+      });
+    }
+
     // ------------------------------------
     // Check duplicate
     // ------------------------------------

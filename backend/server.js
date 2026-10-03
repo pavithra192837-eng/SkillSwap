@@ -187,9 +187,12 @@ async function startServer() {
         const [expired] = await connection.query(`
           SELECT id, user1_id, user2_id
           FROM sessions
-          WHERE status = 'ONGOING'
-            AND started_at IS NOT NULL
-            AND DATE_ADD(started_at, INTERVAL duration_minutes MINUTE) <= NOW()
+          WHERE (
+            (status = 'ONGOING' AND started_at IS NOT NULL
+              AND DATE_ADD(started_at, INTERVAL duration_minutes MINUTE) <= NOW())
+            OR
+            (status = 'SCHEDULED' AND DATE_ADD(scheduled_at, INTERVAL duration_minutes MINUTE) <= NOW())
+          )
           FOR UPDATE
         `);
         if (expired.length) {
@@ -204,6 +207,29 @@ async function startServer() {
             SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW())
             WHERE session_id IN (${ids.map(() => '?').join(',')}) AND status = 'IN_PROGRESS'
           `, ids);
+          // Promote a learned skill automatically when all planned lessons
+          // for that exchange have completed, including sessions completed by
+          // the background expiry monitor.
+          for (const session of expired) {
+            const [plans] = await connection.query(`
+              SELECT er.planned_learning_sessions, lp.learner_id, lp.skill_id,
+                     COUNT(DISTINCT CASE WHEN s.status='COMPLETED' THEN s.id END) AS completed_lessons
+              FROM exchange_requests er
+              JOIN sessions s ON s.request_id=er.id
+              JOIN learning_progress lp ON lp.session_id=s.id
+              WHERE er.id=(SELECT request_id FROM sessions WHERE id=?)
+              GROUP BY er.planned_learning_sessions, lp.learner_id, lp.skill_id
+            `, [session.id]);
+            for (const plan of plans) {
+              if (Number(plan.completed_lessons) < Number(plan.planned_learning_sessions)) continue;
+              const [existingPurpose] = await connection.query(`SELECT id,type FROM user_skills WHERE user_id=? AND skill_id=? LIMIT 1`, [plan.learner_id, plan.skill_id]);
+              if (!existingPurpose.length) {
+                await connection.query(`INSERT INTO user_skills(user_id,skill_id,type,level) VALUES(?,?, 'LEARN','BEGINNER')`, [plan.learner_id, plan.skill_id]);
+                await connection.query(`UPDATE learning_progress lp JOIN sessions s ON s.id=lp.session_id SET lp.status='ADDED_TO_PROFILE',lp.added_to_profile_at=COALESCE(lp.added_to_profile_at,NOW()) WHERE s.request_id=(SELECT request_id FROM sessions WHERE id=?) AND lp.learner_id=? AND lp.skill_id=? AND s.status='COMPLETED'`, [session.id, plan.learner_id, plan.skill_id]);
+                await connection.query(`INSERT INTO notifications(user_id,type,title,message,reference_id,is_read) VALUES(?,?,?,?,?,FALSE)`, [plan.learner_id,'SKILL_LEARNED','Skill added to your profile','You completed all planned lessons for this exchange. Your learned skill is now on your profile.',plan.skill_id]);
+              }
+            }
+          }
           const notificationValues = [];
           for (const session of expired) {
             notificationValues.push(session.user1_id, 'SESSION_COMPLETED', 'Session time is up', 'Your SkillSwap session ended automatically when its duration expired.', session.id);

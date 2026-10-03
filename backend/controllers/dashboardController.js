@@ -111,14 +111,15 @@ const getDashboard = async (req, res) => {
       await pool.query(
         `
         SELECT
-          s.id,
-          s.request_id,
-          s.user1_id,
-          s.user2_id,
-          s.scheduled_at,
-          s.status,
-          s.meeting_id
+          s.id, s.request_id, s.user1_id, s.user2_id, s.scheduled_at,
+          s.duration_minutes, s.session_number, s.status, s.meeting_id,
+          s.lesson_type, s.learner_id, s.teacher_id, s.skill_id,
+          learner.name AS learner_name, teacher.name AS teacher_name,
+          skill.name AS lesson_skill_name
         FROM sessions s
+        LEFT JOIN users learner ON learner.id = s.learner_id
+        LEFT JOIN users teacher ON teacher.id = s.teacher_id
+        LEFT JOIN skills skill ON skill.id = s.skill_id
         WHERE
           (s.user1_id = ? OR s.user2_id = ?)
           AND s.status = 'SCHEDULED'
@@ -130,7 +131,35 @@ const getDashboard = async (req, res) => {
       );
 
     // ====================================
-    // 7. GET RECENT NOTIFICATIONS
+    // 7. GET ACTIVE EXCHANGES WITH LESSON PROGRESS
+    // ====================================
+    const [activeExchanges] = await pool.query(`
+      SELECT er.id AS request_id, er.sender_id, er.receiver_id,
+             er.planned_learning_sessions, er.planned_teaching_sessions,
+             CASE WHEN er.sender_id = ? THEN receiver.name ELSE sender.name END AS partner_name,
+             CASE WHEN er.sender_id = ? THEN requested_skill.name ELSE offered_skill.name END AS learn_skill_name,
+             CASE WHEN er.sender_id = ? THEN offered_skill.name ELSE requested_skill.name END AS teach_skill_name,
+             (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='COMPLETED') AS completed_sessions,
+             (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED') AS scheduled_sessions,
+             (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='COMPLETED' AND s.lesson_type IN ('LEARNING','BOTH') AND s.learner_id = ?) AS completed_learning,
+             (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='COMPLETED' AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS completed_teaching,
+             (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.lesson_type IN ('LEARNING','BOTH') AND s.learner_id = ?) AS scheduled_learning,
+             (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS scheduled_teaching,
+             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= NOW()) AS next_session_at,
+             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= NOW() AND s.lesson_type IN ('LEARNING','BOTH') AND s.learner_id = ?) AS next_learning_at,
+             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= NOW() AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS next_teaching_at
+      FROM exchange_requests er
+      JOIN users sender ON sender.id=er.sender_id
+      JOIN users receiver ON receiver.id=er.receiver_id
+      JOIN skills offered_skill ON offered_skill.id=er.offered_skill_id
+      JOIN skills requested_skill ON requested_skill.id=er.requested_skill_id
+      WHERE (er.sender_id=? OR er.receiver_id=?) AND er.status='ACCEPTED'
+      ORDER BY COALESCE(next_session_at,'9999-12-31') ASC, er.updated_at DESC
+      LIMIT 8
+    `, [userId,userId,userId,userId,userId,userId,userId,userId,userId,userId,userId]);
+
+    // ====================================
+    // 8. GET RECENT NOTIFICATIONS
     // ====================================
     const [notifications] =
       await pool.query(
@@ -152,7 +181,7 @@ const getDashboard = async (req, res) => {
       );
 
     // ====================================
-    // 8. GET RECENT REQUESTS
+    // 9. GET RECENT REQUESTS
     // ====================================
     const [recentRequests] =
       await pool.query(
@@ -198,7 +227,7 @@ const getDashboard = async (req, res) => {
       );
 
     // ====================================
-    // 9. DASHBOARD RESPONSE
+    // 10. DASHBOARD RESPONSE
     // ====================================
     return res.status(200).json({
       success: true,
@@ -229,6 +258,8 @@ const getDashboard = async (req, res) => {
 
       recent_requests:
         recentRequests,
+
+      active_exchanges: activeExchanges,
 
       notifications,
     });
