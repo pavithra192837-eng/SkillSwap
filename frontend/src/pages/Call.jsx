@@ -31,14 +31,15 @@ useEffect(()=>{if(sessionMeta?.status==='COMPLETED'&&!endedRef.current)finish(tr
 const buildPeer=useCallback(async()=>{
   await ensureFirebase();
   if(!callRef||!targetId)throw new Error('The other participant is missing.');
+  if(pcRef.current&&!['closed','failed'].includes(pcRef.current.connectionState))return;
 
   const generation=++callGenerationRef.current;
   const isLive=()=>generation===callGenerationRef.current&&!endedRef.current;
   const isOpen=pc=>isLive()&&pcRef.current===pc&&pc.signalingState!=='closed'&&pc.connectionState!=='closed';
-
   const iceServers=[
     {urls:'stun:stun.l.google.com:19302'},
     {urls:'stun:stun1.l.google.com:19302'},
+    {urls:'stun:stun2.l.google.com:19302'},
     ...(import.meta.env.VITE_TURN_URL&&import.meta.env.VITE_TURN_USERNAME&&import.meta.env.VITE_TURN_CREDENTIAL
       ? [{urls:import.meta.env.VITE_TURN_URL,username:import.meta.env.VITE_TURN_USERNAME,credential:import.meta.env.VITE_TURN_CREDENTIAL}]
       : [])
@@ -50,24 +51,53 @@ const buildPeer=useCallback(async()=>{
   candidateQueueRef.current=[];
   remoteStreamRef.current=new MediaStream();
 
+  const audioTransceiver=pc.addTransceiver('audio',{direction:'sendrecv'});
+  const videoTransceiver=initialMode==='video'
+    ? pc.addTransceiver('video',{direction:'sendrecv'})
+    : null;
+
   const closeIfCurrent=()=>{
     if(pcRef.current!==pc)return;
-    try{pc.ontrack=null;pc.onicecandidate=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;pc.close()}catch{}
+    try{
+      pc.ontrack=null;pc.onicecandidate=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;
+      pc.close();
+    }catch{}
     pcRef.current=null;
   };
+  const failIfStale=()=>!isOpen(pc);
 
   try{
     const constraints=initialMode==='video'
-      ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'}}
+      ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},facingMode:'user'}}
       : {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false};
-    const media=await navigator.mediaDevices.getUserMedia(constraints);
-    if(!isOpen(pc)){media.getTracks().forEach(t=>t.stop());closeIfCurrent();return;}
-    streamRef.current=media;
-    for(const track of media.getTracks()){
-      if(!isOpen(pc)){track.stop();continue;}
-      pc.addTrack(track,media);
+
+    let media;
+    try{
+      media=await navigator.mediaDevices.getUserMedia(constraints);
+    }catch(error){
+      if(error?.name==='AbortError'){
+        await new Promise(resolve=>setTimeout(resolve,350));
+        if(failIfStale())return;
+        media=await navigator.mediaDevices.getUserMedia(constraints);
+      }else throw error;
     }
-    if(!isOpen(pc)){media.getTracks().forEach(t=>t.stop());closeIfCurrent();return;}
+
+    if(failIfStale()){media.getTracks().forEach(t=>t.stop());closeIfCurrent();return;}
+    streamRef.current=media;
+
+    const audioTrack=media.getAudioTracks()[0];
+    if(!audioTrack)throw new Error('Microphone was not available. Allow microphone access and try again.');
+    if(failIfStale()){media.getTracks().forEach(t=>t.stop());return;}
+    await audioTransceiver.sender.replaceTrack(audioTrack);
+    if(failIfStale()){media.getTracks().forEach(t=>t.stop());return;}
+
+    if(videoTransceiver){
+      const videoTrack=media.getVideoTracks()[0];
+      if(!videoTrack)throw new Error('Camera was not available. Allow camera access and try again.');
+      await videoTransceiver.sender.replaceTrack(videoTrack);
+    }
+    if(failIfStale()){media.getTracks().forEach(t=>t.stop());return;}
+
     if(localVideoRef.current)localVideoRef.current.srcObject=media;
 
     pc.ontrack=event=>{
@@ -75,10 +105,10 @@ const buildPeer=useCallback(async()=>{
       const remote=remoteStreamRef.current||new MediaStream();
       remoteStreamRef.current=remote;
       if(event.streams?.[0]){
-        event.streams[0].getTracks().forEach(track=>{if(!remote.getTracks().some(t=>t.id===track.id))remote.addTrack(track)});
-      }else if(!remote.getTracks().some(t=>t.id===event.track.id)){
-        remote.addTrack(event.track);
-      }
+        for(const track of event.streams[0].getTracks()){
+          if(!remote.getTracks().some(t=>t.id===track.id))remote.addTrack(track);
+        }
+      }else if(!remote.getTracks().some(t=>t.id===event.track.id))remote.addTrack(event.track);
       if(remoteVideoRef.current)remoteVideoRef.current.srcObject=remote;
       if(remoteAudioRef.current)remoteAudioRef.current.srcObject=remote;
       setRemoteReady(true);
@@ -99,7 +129,9 @@ const buildPeer=useCallback(async()=>{
       if(pc.connectionState==='disconnected')setStatus('Reconnecting…');
       if(pc.connectionState==='failed'&&!endedRef.current){
         setStatus('Connection failed');
-        setError('The network could not establish a reliable media path. If this happens across different networks, configure a TURN server.');
+        setError(import.meta.env.VITE_TURN_URL
+          ? 'The network could not establish a media path. Check your TURN server credentials.'
+          : 'Phone-to-laptop calls may require a TURN server on different networks. Add VITE_TURN_URL, VITE_TURN_USERNAME and VITE_TURN_CREDENTIAL to your frontend environment.');
       }
     };
     pc.oniceconnectionstatechange=()=>{
@@ -108,7 +140,9 @@ const buildPeer=useCallback(async()=>{
       if(pc.iceConnectionState==='disconnected')setStatus('Reconnecting…');
       if(pc.iceConnectionState==='failed'&&!endedRef.current){
         setStatus('Connection failed');
-        setError('ICE connection failed. A TURN server is required on networks that block direct peer-to-peer connections.');
+        setError(import.meta.env.VITE_TURN_URL
+          ? 'ICE failed. Verify the TURN server and credentials.'
+          : 'ICE failed between these networks. A TURN server is required for reliable phone-to-laptop calls across restrictive networks.');
       }
     };
 
@@ -138,11 +172,12 @@ const buildPeer=useCallback(async()=>{
         if(description.type==='offer'&&pc.signalingState!=='stable')return false;
         if(description.type==='answer'&&pc.signalingState!=='have-local-offer')return false;
         await pc.setRemoteDescription(new RTCSessionDescription(description));
+        if(!isOpen(pc))return false;
         remoteReadyRef.current=true;
         await flushCandidates();
         return true;
       }catch(error){
-        if(isOpen(pc))setError(`WebRTC negotiation failed: ${error?.message||error?.name||'unknown error'}`);
+        if(isOpen(pc)&&error?.name!=='InvalidStateError')setError(`WebRTC negotiation failed: ${error?.message||error?.name||'unknown error'}`);
         return false;
       }
     };
@@ -154,23 +189,23 @@ const buildPeer=useCallback(async()=>{
         finishRef.current?.(true,data.endReason||'REMOTE_ENDED');
         return;
       }
-      if(incoming){
-        if(data.offer&&!remoteReadyRef.current){
-          const applied=await applyRemoteDescription(data.offer);
-          if(!applied||!isOpen(pc))return;
-          try{
+      try{
+        if(incoming){
+          if(data.offer&&!remoteReadyRef.current){
+            const applied=await applyRemoteDescription(data.offer);
+            if(!applied||!isOpen(pc))return;
             const answer=await pc.createAnswer();
             if(!isOpen(pc))return;
             await pc.setLocalDescription(answer);
             if(!isOpen(pc))return;
             await update(callRef,{answer:{type:answer.type,sdp:answer.sdp},status:'ACTIVE',answeredAt:serverTimestamp()});
             if(isOpen(pc))setStatus('Connecting');
-          }catch(error){
-            if(isOpen(pc))setError(`Could not answer the call: ${error?.message||error?.name||'unknown error'}`);
           }
+        }else if(data.answer&&!remoteReadyRef.current){
+          await applyRemoteDescription(data.answer);
         }
-      }else if(data.answer&&!remoteReadyRef.current){
-        await applyRemoteDescription(data.answer);
+      }catch(error){
+        if(isOpen(pc)&&!endedRef.current)setError(`Could not complete the call setup: ${error?.message||error?.name||'unknown error'}`);
       }
     });
     cleanupRef.current.push(callUnsub);
@@ -184,30 +219,33 @@ const buildPeer=useCallback(async()=>{
     cleanupRef.current.push(candidateUnsub);
 
     await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
-    if(!isOpen(pc))return;
+    if(failIfStale())return;
 
     if(!incoming){
-      const offer=await pc.createOffer();
-      if(!isOpen(pc))return;
+      const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:initialMode==='video'});
+      if(failIfStale())return;
       await pc.setLocalDescription(offer);
-      if(!isOpen(pc))return;
+      if(failIfStale())return;
       await update(callRef,{
         callerId:Number(user.id),calleeId:targetId,callerName:user.name,
         type:initialMode==='video'?'video':'voice',status:'RINGING',
         offer:{type:offer.type,sdp:offer.sdp},createdAt:serverTimestamp()
       });
-      if(!isOpen(pc))return;
+      if(failIfStale())return;
       await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{
         callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()
       });
     }
   }catch(error){
     if(isLive()){
-      setError(error?.message||'Could not start the call.');
-      setStatus('Unavailable');
+      const msg=error?.name==='NotAllowedError'
+        ? 'Microphone/camera permission was denied. Allow access and try again.'
+        : error?.name==='AbortError'
+          ? 'The browser aborted media access. Close any other app using the microphone/camera and try again.'
+          : error?.message||'Could not start the call.';
+      setError(msg);setStatus('Unavailable');
     }
     closeIfCurrent();
-    throw error;
   }
 },[callId,callRef,incoming,initialMode,targetId,user.id,user.name]);
 
@@ -268,43 +306,30 @@ const toggleSpeaker=async()=>{
   }catch(e){setError(e?.message||'Could not change the call audio output.');}
 };
 const switchMode=async()=>{
+  // Voice and video are separate negotiated call types. Do not mutate an audio-only
+  // SDP session into video without a full renegotiation; that was causing one-way
+  // media and closed-peer errors on phone/laptop calls.
+  if(mode==='audio'){
+    setError('This is an audio-only call. End this call and start a Video Call for two-way audio + video.');
+    return;
+  }
   const pc=pcRef.current;
   if(switching||!pc||endedRef.current||pc.signalingState==='closed'||pc.connectionState==='closed')return;
   setSwitching(true);
-  const generation=callGenerationRef.current;
   try{
-    if(mode==='video'){
-      const sender=pc.getSenders().find(s=>s.track?.kind==='video');
-      const oldTrack=sender?.track;
-      if(sender&&pc.signalingState!=='closed')await sender.replaceTrack(null);
-      oldTrack?.stop();
-      const audio=streamRef.current?.getAudioTracks()[0];
-      streamRef.current=audio?new MediaStream([audio]):new MediaStream();
-      if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;
-      setMode('audio');setCameraOff(true);
-      return;
-    }
-
-    const media=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'}});
-    if(generation!==callGenerationRef.current||endedRef.current||pcRef.current!==pc||pc.signalingState==='closed'){media.getTracks().forEach(t=>t.stop());return}
-    const track=media.getVideoTracks()[0];
-    let sender=pc.getSenders().find(s=>s.track?.kind==='video');
-    if(!sender){
-      const transceiver=pc.getTransceivers().find(t=>t.receiver?.track?.kind==='video');
-      if(transceiver){sender=transceiver.sender;transceiver.direction='sendrecv';}
-      else{track.stop();setError('This voice call was created as audio-only. End it and start a Video call to add camera video.');return;}
-    }
-    if(generation!==callGenerationRef.current||endedRef.current||pcRef.current!==pc||pc.signalingState==='closed'){track.stop();return}
-    await sender.replaceTrack(track);
+    const sender=pc.getSenders().find(s=>s.track?.kind==='video');
+    if(!sender){setError('The video channel is not available. Start a new Video Call.');return;}
+    const oldTrack=sender.track;
+    if(pcRef.current!==pc||pc.signalingState==='closed')return;
+    await sender.replaceTrack(null);
+    oldTrack?.stop();
     const audio=streamRef.current?.getAudioTracks()[0];
-    streamRef.current=new MediaStream([...(audio?[audio]:[]),track]);
+    streamRef.current=audio?new MediaStream([audio]):new MediaStream();
     if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;
-
-    setMode('video');setCameraOff(false);
+    setMode('audio');setCameraOff(true);
   }catch(e){
-    if(e?.name==='NotAllowedError')setError('Camera permission was denied.');
-    else if(e?.name==='InvalidStateError')setError('The call connection was closed. Please start the call again.');
-    else setError(e?.message||'Could not switch media mode.');
+    if(e?.name==='InvalidStateError')setError('The call connection closed. Please start the call again.');
+    else setError(e?.message||'Could not switch to audio.');
   }finally{setSwitching(false)}
 };
 const toggleCamera=()=>{const t=streamRef.current?.getVideoTracks()[0];if(!t)return;t.enabled=!t.enabled;setCameraOff(!t.enabled)};
