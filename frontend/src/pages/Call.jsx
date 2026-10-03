@@ -10,7 +10,7 @@ const randomId=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.rand
 const initials=(name='Student')=>name.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase()||'S';
 async function ensureFirebase(){if(!firebaseConfigured||!firebaseAuth||!realtimeDb)throw new Error('Realtime calling is not configured. Add Firebase variables and enable Anonymous Authentication.');if(!firebaseAuth.currentUser)await signInAnonymously(firebaseAuth);}
 export default function Call(){const {user}=useAuth();const navigate=useNavigate();const location=useLocation();const [params]=useSearchParams();const incoming=params.get('incoming')==='1';const callId=params.get('callId')||useMemo(randomId,[]);const targetId=Number(params.get('userId'));const targetName=params.get('name')||'SkillSwap student';const sessionId=params.get('sessionId');const initialMode=location.pathname.includes('video-call')?'video':'audio';
-const pcRef=useRef(null),streamRef=useRef(null),localVideoRef=useRef(null),remoteVideoRef=useRef(null),remoteAudioRef=useRef(null),cleanupRef=useRef([]),chatCleanupRef=useRef([]),candidateQueueRef=useRef([]),remoteReadyRef=useRef(false),endedRef=useRef(false),connectedRef=useRef(false),completingRef=useRef(false),startedAtRef=useRef(0),callGenerationRef=useRef(0),finishRef=useRef(null);
+const pcRef=useRef(null),streamRef=useRef(null),localVideoRef=useRef(null),remoteVideoRef=useRef(null),remoteAudioRef=useRef(null),remoteStreamRef=useRef(null),cleanupRef=useRef([]),chatCleanupRef=useRef([]),candidateQueueRef=useRef([]),remoteReadyRef=useRef(false),endedRef=useRef(false),connectedRef=useRef(false),completingRef=useRef(false),startedAtRef=useRef(0),callGenerationRef=useRef(0),finishRef=useRef(null);
 const callRef=useMemo(()=>realtimeDb?ref(realtimeDb,`calls/${callId}`):null,[callId]);
 const [mode,setMode]=useState(initialMode),[status,setStatus]=useState(incoming?'Connecting':'Calling'),[error,setError]=useState(''),[muted,setMuted]=useState(false),[cameraOff,setCameraOff]=useState(initialMode==='audio'),[chatOpen,setChatOpen]=useState(false),[elapsed,setElapsed]=useState(0),[messages,setMessages]=useState([]),[message,setMessage]=useState(''),[chatReady,setChatReady]=useState(false),[fullscreen,setFullscreen]=useState(false),[switching,setSwitching]=useState(false),[remoteReady,setRemoteReady]=useState(false),[speakerOn,setSpeakerOn]=useState(false);
 const [sessionMeta,setSessionMeta]=useState(null),[sessionRemaining,setSessionRemaining]=useState(null),[sessionSummary,setSessionSummary]=useState(null);
@@ -31,42 +31,227 @@ useEffect(()=>{if(sessionMeta?.status==='COMPLETED'&&!endedRef.current)finish(tr
 const buildPeer=useCallback(async()=>{
   await ensureFirebase();
   if(!callRef||!targetId)throw new Error('The other participant is missing.');
+
   const generation=++callGenerationRef.current;
-  const isCurrent=()=>generation===callGenerationRef.current&&!endedRef.current;
-  const pc=new RTCPeerConnection({iceCandidatePoolSize:10,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require',iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},...(import.meta.env.VITE_TURN_URL&&import.meta.env.VITE_TURN_USERNAME&&import.meta.env.VITE_TURN_CREDENTIAL?[{urls:import.meta.env.VITE_TURN_URL,username:import.meta.env.VITE_TURN_USERNAME,credential:import.meta.env.VITE_TURN_CREDENTIAL}]:[])]});
+  const isLive=()=>generation===callGenerationRef.current&&!endedRef.current;
+  const isOpen=pc=>isLive()&&pcRef.current===pc&&pc.signalingState!=='closed'&&pc.connectionState!=='closed';
+
+  const iceServers=[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    ...(import.meta.env.VITE_TURN_URL&&import.meta.env.VITE_TURN_USERNAME&&import.meta.env.VITE_TURN_CREDENTIAL
+      ? [{urls:import.meta.env.VITE_TURN_URL,username:import.meta.env.VITE_TURN_USERNAME,credential:import.meta.env.VITE_TURN_CREDENTIAL}]
+      : [])
+  ];
+
+  const pc=new RTCPeerConnection({iceServers,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
   pcRef.current=pc;
-  const media=await navigator.mediaDevices.getUserMedia({audio:true,video:initialMode==='video'?{width:{ideal:1280},height:{ideal:720},facingMode:'user'}:false});
-  if(!isCurrent()||pcRef.current!==pc||pc.signalingState==='closed'){media.getTracks().forEach(t=>t.stop());try{pc.close()}catch{};return;}
-  streamRef.current=media;
-  for(const track of media.getTracks()){if(!isCurrent()||pc.signalingState==='closed')break;pc.addTrack(track,media);}
-  if(!isCurrent()||pc.signalingState==='closed'){media.getTracks().forEach(t=>t.stop());try{pc.close()}catch{};if(pcRef.current===pc)pcRef.current=null;return;}
-  if(initialMode==='audio'&&pc.getTransceivers().every(t=>t.receiver.track.kind!=='video'))pc.addTransceiver('video',{direction:'sendrecv'});
-  if(localVideoRef.current)localVideoRef.current.srcObject=media;
-  pc.ontrack=e=>{if(!isCurrent()||pc.signalingState==='closed')return;const stream=e.streams[0]||new MediaStream([e.track]);if(remoteVideoRef.current)remoteVideoRef.current.srcObject=stream;if(remoteAudioRef.current)remoteAudioRef.current.srcObject=stream;setRemoteReady(true);if(remoteAudioRef.current)remoteAudioRef.current.play().catch(()=>{})};
-  pc.onconnectionstatechange=()=>{if(!isCurrent())return;if(pc.connectionState==='connected'){connectedRef.current=true;startedAtRef.current=Date.now();setStatus('Connected')}if(['failed','closed'].includes(pc.connectionState)&&!endedRef.current)finishRef.current?.(false,'CONNECTION_LOST')};
-  const own=incoming?'receiverCandidates':'callerCandidates',other=incoming?'callerCandidates':'receiverCandidates';
-  pc.onicecandidate=e=>{if(e.candidate&&isCurrent())push(ref(realtimeDb,`calls/${callId}/${own}`),e.candidate.toJSON()).catch(()=>{})};
-  await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
-  if(!isCurrent()||pc.signalingState==='closed')return;
-  const safeSetRemote=async(description)=>{if(!isCurrent()||pcRef.current!==pc||pc.signalingState==='closed')return false;try{await pc.setRemoteDescription(new RTCSessionDescription(description));return true}catch(e){if(isCurrent())setError(e?.name==='InvalidStateError'?'The call connection was restarted. Please try the call again.':'The remote connection could not be established.');return false}};
-  const flushCandidates=async()=>{if(!isCurrent()||pc.signalingState==='closed')return;for(const c of candidateQueueRef.current.splice(0)){if(!isCurrent()||pc.signalingState==='closed')break;try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){if(e?.name!=='InvalidStateError'&&isCurrent())console.warn('ICE candidate rejected',e)}}};
-  const callUnsub=onValue(callRef,async snap=>{const data=snap.val();if(!data||!isCurrent())return;if(data.status==='ENDED'){finishRef.current?.(true,data.endReason||'REMOTE_ENDED');return}if(!incoming&&data.answer&&!remoteReadyRef.current){const ok=await safeSetRemote(data.answer);if(ok&&isCurrent()){remoteReadyRef.current=true;await flushCandidates()}}});
-  cleanupRef.current.push(callUnsub);
-  const candUnsub=onChildAdded(ref(realtimeDb,`calls/${callId}/${other}`),async snap=>{const c=snap.val();if(!c||!isCurrent()||pc.signalingState==='closed')return;if(!remoteReadyRef.current)candidateQueueRef.current.push(c);else{try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){if(e?.name!=='InvalidStateError'&&isCurrent())console.warn('ICE candidate rejected',e)}}});
-  cleanupRef.current.push(candUnsub);
-  if(incoming){
-    const data=await new Promise((resolve,reject)=>{let done=false;const unsub=onValue(callRef,s=>{const d=s.val();if(!d||!isCurrent())return;if(d.status==='ENDED'){done=true;unsub();reject(new Error('The caller ended the call.'))}else if(d.offer){done=true;unsub();resolve(d)}});cleanupRef.current.push(unsub);const timer=setTimeout(()=>{if(!done){done=true;unsub();reject(new Error('This call invitation expired.'))}},30000);cleanupRef.current.push(()=>clearTimeout(timer))});
-    if(!isCurrent()||pc.signalingState==='closed')return;
-    const ok=await safeSetRemote(data.offer);if(!ok)return;remoteReadyRef.current=true;await flushCandidates();
-    if(!isCurrent()||pc.signalingState==='closed')return;
-    const answer=await pc.createAnswer();if(!isCurrent()||pc.signalingState==='closed')return;await pc.setLocalDescription(answer);if(!isCurrent()||pc.signalingState==='closed')return;await update(callRef,{answer:{type:answer.type,sdp:answer.sdp},status:'ACTIVE',answeredAt:serverTimestamp()});
-  }else{
-    if(!isCurrent()||pc.signalingState==='closed')return;const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:true});if(!isCurrent()||pc.signalingState==='closed')return;await pc.setLocalDescription(offer);if(!isCurrent()||pc.signalingState==='closed')return;await update(callRef,{callerId:Number(user.id),calleeId:targetId,callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',offer:{type:offer.type,sdp:offer.sdp},createdAt:serverTimestamp()});await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()});
+  remoteReadyRef.current=false;
+  candidateQueueRef.current=[];
+  remoteStreamRef.current=new MediaStream();
+
+  const closeIfCurrent=()=>{
+    if(pcRef.current!==pc)return;
+    try{pc.ontrack=null;pc.onicecandidate=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;pc.close()}catch{}
+    pcRef.current=null;
+  };
+
+  try{
+    const constraints=initialMode==='video'
+      ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'}}
+      : {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false};
+    const media=await navigator.mediaDevices.getUserMedia(constraints);
+    if(!isOpen(pc)){media.getTracks().forEach(t=>t.stop());closeIfCurrent();return;}
+    streamRef.current=media;
+    for(const track of media.getTracks()){
+      if(!isOpen(pc)){track.stop();continue;}
+      pc.addTrack(track,media);
+    }
+    if(!isOpen(pc)){media.getTracks().forEach(t=>t.stop());closeIfCurrent();return;}
+    if(localVideoRef.current)localVideoRef.current.srcObject=media;
+
+    pc.ontrack=event=>{
+      if(!isOpen(pc))return;
+      const remote=remoteStreamRef.current||new MediaStream();
+      remoteStreamRef.current=remote;
+      if(event.streams?.[0]){
+        event.streams[0].getTracks().forEach(track=>{if(!remote.getTracks().some(t=>t.id===track.id))remote.addTrack(track)});
+      }else if(!remote.getTracks().some(t=>t.id===event.track.id)){
+        remote.addTrack(event.track);
+      }
+      if(remoteVideoRef.current)remoteVideoRef.current.srcObject=remote;
+      if(remoteAudioRef.current)remoteAudioRef.current.srcObject=remote;
+      setRemoteReady(true);
+      remoteAudioRef.current?.play().catch(()=>{});
+      remoteVideoRef.current?.play().catch(()=>{});
+    };
+
+    const markConnected=()=>{
+      if(!isOpen(pc))return;
+      if(pc.connectionState==='connected'||pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'){
+        if(!connectedRef.current){connectedRef.current=true;startedAtRef.current=Date.now();}
+        setStatus('Connected');
+      }
+    };
+    pc.onconnectionstatechange=()=>{
+      if(!isOpen(pc))return;
+      markConnected();
+      if(pc.connectionState==='disconnected')setStatus('Reconnecting…');
+      if(pc.connectionState==='failed'&&!endedRef.current){
+        setStatus('Connection failed');
+        setError('The network could not establish a reliable media path. If this happens across different networks, configure a TURN server.');
+      }
+    };
+    pc.oniceconnectionstatechange=()=>{
+      if(!isOpen(pc))return;
+      markConnected();
+      if(pc.iceConnectionState==='disconnected')setStatus('Reconnecting…');
+      if(pc.iceConnectionState==='failed'&&!endedRef.current){
+        setStatus('Connection failed');
+        setError('ICE connection failed. A TURN server is required on networks that block direct peer-to-peer connections.');
+      }
+    };
+
+    const ownCandidates=incoming?'receiverCandidates':'callerCandidates';
+    const remoteCandidates=incoming?'callerCandidates':'receiverCandidates';
+    pc.onicecandidate=event=>{
+      if(!event.candidate||!isOpen(pc))return;
+      push(ref(realtimeDb,`calls/${callId}/${ownCandidates}`),event.candidate.toJSON()).catch(()=>{});
+    };
+
+    const addCandidate=async candidate=>{
+      if(!isOpen(pc)||!candidate)return;
+      try{await pc.addIceCandidate(new RTCIceCandidate(candidate));}
+      catch(error){
+        if(error?.name!=='InvalidStateError'&&isOpen(pc))console.warn('ICE candidate rejected',error);
+      }
+    };
+    const flushCandidates=async()=>{
+      if(!isOpen(pc)||!remoteReadyRef.current)return;
+      const pending=candidateQueueRef.current.splice(0);
+      for(const candidate of pending){if(!isOpen(pc))break;await addCandidate(candidate);}
+    };
+
+    const applyRemoteDescription=async description=>{
+      if(!isOpen(pc)||!description)return false;
+      try{
+        if(description.type==='offer'&&pc.signalingState!=='stable')return false;
+        if(description.type==='answer'&&pc.signalingState!=='have-local-offer')return false;
+        await pc.setRemoteDescription(new RTCSessionDescription(description));
+        remoteReadyRef.current=true;
+        await flushCandidates();
+        return true;
+      }catch(error){
+        if(isOpen(pc))setError(`WebRTC negotiation failed: ${error?.message||error?.name||'unknown error'}`);
+        return false;
+      }
+    };
+
+    const callUnsub=onValue(callRef,async snap=>{
+      const data=snap.val();
+      if(!data||!isLive())return;
+      if(data.status==='ENDED'){
+        finishRef.current?.(true,data.endReason||'REMOTE_ENDED');
+        return;
+      }
+      if(incoming){
+        if(data.offer&&!remoteReadyRef.current){
+          const applied=await applyRemoteDescription(data.offer);
+          if(!applied||!isOpen(pc))return;
+          try{
+            const answer=await pc.createAnswer();
+            if(!isOpen(pc))return;
+            await pc.setLocalDescription(answer);
+            if(!isOpen(pc))return;
+            await update(callRef,{answer:{type:answer.type,sdp:answer.sdp},status:'ACTIVE',answeredAt:serverTimestamp()});
+            if(isOpen(pc))setStatus('Connecting');
+          }catch(error){
+            if(isOpen(pc))setError(`Could not answer the call: ${error?.message||error?.name||'unknown error'}`);
+          }
+        }
+      }else if(data.answer&&!remoteReadyRef.current){
+        await applyRemoteDescription(data.answer);
+      }
+    });
+    cleanupRef.current.push(callUnsub);
+
+    const candidateUnsub=onChildAdded(ref(realtimeDb,`calls/${callId}/${remoteCandidates}`),async snap=>{
+      const candidate=snap.val();
+      if(!candidate||!isOpen(pc))return;
+      if(!remoteReadyRef.current)candidateQueueRef.current.push(candidate);
+      else await addCandidate(candidate);
+    });
+    cleanupRef.current.push(candidateUnsub);
+
+    await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
+    if(!isOpen(pc))return;
+
+    if(!incoming){
+      const offer=await pc.createOffer();
+      if(!isOpen(pc))return;
+      await pc.setLocalDescription(offer);
+      if(!isOpen(pc))return;
+      await update(callRef,{
+        callerId:Number(user.id),calleeId:targetId,callerName:user.name,
+        type:initialMode==='video'?'video':'voice',status:'RINGING',
+        offer:{type:offer.type,sdp:offer.sdp},createdAt:serverTimestamp()
+      });
+      if(!isOpen(pc))return;
+      await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{
+        callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()
+      });
+    }
+  }catch(error){
+    if(isLive()){
+      setError(error?.message||'Could not start the call.');
+      setStatus('Unavailable');
+    }
+    closeIfCurrent();
+    throw error;
   }
 },[callId,callRef,incoming,initialMode,targetId,user.id,user.name]);
-useEffect(()=>{let disposed=false;(async()=>{try{await buildPeer();if(disposed){callGenerationRef.current+=1;cleanup();stopMedia()}}catch(e){if(!disposed&&!endedRef.current){setError(e.message||'Could not start the call.');setStatus('Unavailable')}}})();return()=>{disposed=true;callGenerationRef.current+=1;cleanup();stopMedia()};},[buildPeer,cleanup,stopMedia]);
-useEffect(()=>{if(sessionId)return;const timer=setInterval(()=>{if(connectedRef.current&&startedAtRef.current)setElapsed(Math.floor((Date.now()-startedAtRef.current)/1000))},1000);return()=>clearInterval(timer)},[sessionId]);
-useEffect(()=>{if(!chatOpen||!targetId)return;let off=false;ensureFirebase().then(()=>{if(off)return;setChatReady(true);const unsub=onValue(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),s=>{const v=s.val()||{};setMessages(Object.entries(v).map(([id,x])=>({id,...x})).sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)))});cleanupRef.current.push(unsub)}).catch(e=>setError(e.message));return()=>{off=true}},[chatOpen,targetId,user.id]);
+
+useEffect(()=>{
+  let disposed=false;
+  (async()=>{
+    try{
+      await buildPeer();
+      if(disposed){callGenerationRef.current+=1;cleanup();stopMedia();}
+    }catch(error){
+      if(!disposed&&!endedRef.current){setError(error?.message||'Could not start the call.');setStatus('Unavailable');}
+    }
+  })();
+  return()=>{
+    disposed=true;
+    callGenerationRef.current+=1;
+    cleanup();
+    stopMedia();
+  };
+},[buildPeer,cleanup,stopMedia]);
+
+useEffect(()=>{
+  if(sessionId)return;
+  const timer=setInterval(()=>{
+    if(connectedRef.current&&startedAtRef.current)setElapsed(Math.floor((Date.now()-startedAtRef.current)/1000));
+  },1000);
+  return()=>clearInterval(timer);
+},[sessionId]);
+
+useEffect(()=>{
+  if(!chatOpen||!targetId)return;
+  let off=false;
+  ensureFirebase().then(()=>{
+    if(off)return;
+    setChatReady(true);
+    const unsub=onValue(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),s=>{
+      const v=s.val()||{};
+      setMessages(Object.entries(v).map(([id,x])=>({id,...x})).sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)));
+    });
+    chatCleanupRef.current.push(unsub);
+  }).catch(error=>{if(!off)setError(error.message)});
+  return()=>{off=true;setChatReady(false);cleanupChat()};
+},[chatOpen,targetId,user.id,cleanupChat]);
+
 const toggleMute=()=>{const t=streamRef.current?.getAudioTracks()[0];if(!t)return;t.enabled=!t.enabled;setMuted(!t.enabled)};
 const toggleSpeaker=async()=>{
   const audio=remoteAudioRef.current;if(!audio)return;
@@ -82,7 +267,46 @@ const toggleSpeaker=async()=>{
     await audio.play().catch(()=>{});
   }catch(e){setError(e?.message||'Could not change the call audio output.');}
 };
-const switchMode=async()=>{const pc=pcRef.current;if(switching||!pc||endedRef.current||pc.signalingState==='closed'||pc.connectionState==='closed')return;setSwitching(true);const generation=callGenerationRef.current;try{if(mode==='video'){const sender=pc.getSenders().find(s=>s.track?.kind==='video');const oldTrack=sender?.track;if(sender&&pc.signalingState!=='closed')await sender.replaceTrack(null);oldTrack?.stop();const audio=streamRef.current?.getAudioTracks()[0];streamRef.current=audio?new MediaStream([audio]):new MediaStream();if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;setMode('audio');setCameraOff(true)}else{const media=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'}});if(generation!==callGenerationRef.current||endedRef.current||pcRef.current!==pc||pc.signalingState==='closed'){media.getTracks().forEach(t=>t.stop());return}const track=media.getVideoTracks()[0];const sender=pc.getTransceivers().find(t=>t.receiver?.track?.kind==='video')?.sender||pc.getSenders().find(s=>s.track?.kind==='video');if(sender&&pc.signalingState!=='closed')await sender.replaceTrack(track);else if(pc.signalingState!=='closed')pc.addTransceiver(track,{direction:'sendrecv'});else{track.stop();return}const audio=streamRef.current?.getAudioTracks()[0];streamRef.current=new MediaStream([...(audio?[audio]:[]),track]);if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;setMode('video');setCameraOff(false)}}catch(e){if(e?.name==='NotAllowedError')setError('Camera permission was denied.');else if(e?.name==='InvalidStateError')setError('The call connection was closed. Please start the call again.');else setError(e?.message||'Could not switch media mode.')}finally{setSwitching(false)}};
+const switchMode=async()=>{
+  const pc=pcRef.current;
+  if(switching||!pc||endedRef.current||pc.signalingState==='closed'||pc.connectionState==='closed')return;
+  setSwitching(true);
+  const generation=callGenerationRef.current;
+  try{
+    if(mode==='video'){
+      const sender=pc.getSenders().find(s=>s.track?.kind==='video');
+      const oldTrack=sender?.track;
+      if(sender&&pc.signalingState!=='closed')await sender.replaceTrack(null);
+      oldTrack?.stop();
+      const audio=streamRef.current?.getAudioTracks()[0];
+      streamRef.current=audio?new MediaStream([audio]):new MediaStream();
+      if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;
+      setMode('audio');setCameraOff(true);
+      return;
+    }
+
+    const media=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'}});
+    if(generation!==callGenerationRef.current||endedRef.current||pcRef.current!==pc||pc.signalingState==='closed'){media.getTracks().forEach(t=>t.stop());return}
+    const track=media.getVideoTracks()[0];
+    let sender=pc.getSenders().find(s=>s.track?.kind==='video');
+    if(!sender){
+      const transceiver=pc.getTransceivers().find(t=>t.receiver?.track?.kind==='video');
+      if(transceiver){sender=transceiver.sender;transceiver.direction='sendrecv';}
+      else{track.stop();setError('This voice call was created as audio-only. End it and start a Video call to add camera video.');return;}
+    }
+    if(generation!==callGenerationRef.current||endedRef.current||pcRef.current!==pc||pc.signalingState==='closed'){track.stop();return}
+    await sender.replaceTrack(track);
+    const audio=streamRef.current?.getAudioTracks()[0];
+    streamRef.current=new MediaStream([...(audio?[audio]:[]),track]);
+    if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;
+
+    setMode('video');setCameraOff(false);
+  }catch(e){
+    if(e?.name==='NotAllowedError')setError('Camera permission was denied.');
+    else if(e?.name==='InvalidStateError')setError('The call connection was closed. Please start the call again.');
+    else setError(e?.message||'Could not switch media mode.');
+  }finally{setSwitching(false)}
+};
 const toggleCamera=()=>{const t=streamRef.current?.getVideoTracks()[0];if(!t)return;t.enabled=!t.enabled;setCameraOff(!t.enabled)};
 const uploadAttachment=async file=>{if(!firebaseStorage)throw new Error('File sharing is not configured. Enable Firebase Storage.');if(file.size>20*1024*1024)throw new Error('Files must be 20 MB or smaller.');const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path=storageRef(firebaseStorage,`chat-files/${chatId(user.id,targetId)}/${Date.now()}-${safe}`);await uploadBytes(path,file,{contentType:file.type||'application/octet-stream'});return {url:await getDownloadURL(path),name:file.name,size:file.size,type:file.type||'application/octet-stream'};};
 const sendAttachment=async e=>{const file=e.target.files?.[0];e.target.value='';if(!file||!targetId)return;try{setError('');await ensureFirebase();const fileInfo=await uploadAttachment(file);await push(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),{senderId:Number(user.id),senderName:user.name,attachment:fileInfo,createdAt:Date.now()});}catch(e){setError(e.message||'Could not send the file.')}};
