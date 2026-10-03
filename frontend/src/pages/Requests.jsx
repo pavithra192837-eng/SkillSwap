@@ -1,292 +1,80 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import "./Requests.css";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, CalendarDays, Check, Clock3, MessageCircle, RefreshCw, UserRound, X } from 'lucide-react';
+import api, { getErrorMessage } from '../api';
+import './Requests.css';
 
-const receivedRequestsData = [
-  {
-    id: 1,
-    name: "Arun Kumar",
-    avatar: "A",
-    department: "CSE",
-    year: "3rd Year",
-    teaches: "Python",
-    wants: "UI/UX Design",
-    message:
-      "Hi! I can help you learn Python. I would love to learn UI/UX Design from you.",
-  },
-  {
-    id: 2,
-    name: "Priya Sharma",
-    avatar: "P",
-    department: "IT",
-    year: "3rd Year",
-    teaches: "Figma",
-    wants: "JavaScript",
-    message:
-      "Hey! I am interested in exchanging Figma and JavaScript skills with you.",
-  },
-];
+function initials(name = 'Student') { return name.split(/\s+/).filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'S'; }
+function dateText(v) { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.getTime()) ? v : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
 
-function Requests() {
-  const [activeTab, setActiveTab] = useState("received");
-  const [receivedRequests, setReceivedRequests] = useState(
-    receivedRequestsData
-  );
+export default function Requests() {
+  const [tab, setTab] = useState('received');
+  const [incoming, setIncoming] = useState([]);
+  const [outgoing, setOutgoing] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState('');
+  const [scheduleFor, setScheduleFor] = useState(null);
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(60);
 
-  const [sentRequests, setSentRequests] = useState(() => {
-    const savedRequests = localStorage.getItem("skillswapRequests");
+  const load = useCallback(async () => {
+    try {
+      setError('');
+      const [a, b] = await Promise.all([api.get('/requests/incoming'), api.get('/requests/outgoing')]);
+      setIncoming(a.data.requests || []);
+      setOutgoing(b.data.requests || []);
+    } catch (e) { setError(getErrorMessage(e, 'Could not load your requests.')); }
+    finally { setLoading(false); }
+  }, []);
 
-    return savedRequests ? JSON.parse(savedRequests) : [];
-  });
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 5000);
+    const refresh = () => load();
+    window.addEventListener('skillswap:refresh', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('skillswap:refresh', refresh); };
+  }, [load]);
 
-  const handleAccept = (id) => {
-    setReceivedRequests((currentRequests) =>
-      currentRequests.filter((request) => request.id !== id)
-    );
+  const pendingReceived = useMemo(() => incoming.filter(r => r.status === 'PENDING').length, [incoming]);
+  const pendingSent = useMemo(() => outgoing.filter(r => r.status === 'PENDING').length, [outgoing]);
+  const list = tab === 'received' ? incoming : outgoing;
+
+  const act = async (id, action, message) => {
+    try { setBusy(id); setError(''); await action(); await load(); }
+    catch (e) { setError(getErrorMessage(e, message)); }
+    finally { setBusy(null); }
   };
 
-  const handleDecline = (id) => {
-    setReceivedRequests((currentRequests) =>
-      currentRequests.filter((request) => request.id !== id)
-    );
+  const schedule = async (requestId) => {
+    if (!scheduleAt) return setError('Choose a date and time first.');
+    await act(requestId, () => api.post('/sessions', { request_id: requestId, scheduled_at: scheduleAt, duration_minutes: durationMinutes }), 'Could not schedule the session.');
+    setScheduleFor(null); setScheduleAt(''); setDurationMinutes(60);
   };
 
-  const handleCancel = (id) => {
-    const updatedRequests = sentRequests.filter(
-      (request) => request.id !== id
-    );
+  return <div className="requests-modern">
+    <section className="requests-intro"><div><span className="page-eyebrow">CONNECTIONS</span><h2>Exchange requests</h2><p>Review real requests from students, accept the right exchange and move into a shared learning session.</p></div><button className="outline-action" onClick={load}><RefreshCw size={16}/> Refresh</button></section>
 
-    setSentRequests(updatedRequests);
+    <div className="request-tabs"><button className={tab === 'received' ? 'active' : ''} onClick={() => setTab('received')}><span>Received</span><b>{pendingReceived}</b></button><button className={tab === 'sent' ? 'active' : ''} onClick={() => setTab('sent')}><span>Sent</span><b>{pendingSent}</b></button></div>
+    {error && <div className="request-alert">{error}</div>}
 
-    localStorage.setItem(
-      "skillswapRequests",
-      JSON.stringify(updatedRequests)
-    );
-  };
-
-  return (
-    <main className="requests-page">
-      <div className="requests-container">
-
-        {/* Header */}
-        <section className="requests-header">
-          <Link to="/dashboard" className="requests-back">
-            ← Back to Dashboard
-          </Link>
-
-          <p className="requests-label">SKILLSWAP CONNECTIONS</p>
-
-          <h1>
-            Your <span>requests.</span>
-          </h1>
-
-          <p className="requests-description">
-            Manage your skill exchange requests and connect with students
-            who share your learning goals.
-          </p>
-        </section>
-
-        {/* Tabs */}
-        <section className="requests-tabs">
-          <button
-            className={activeTab === "received" ? "active" : ""}
-            onClick={() => setActiveTab("received")}
-          >
-            Received
-            <span>{receivedRequests.length}</span>
-          </button>
-
-          <button
-            className={activeTab === "sent" ? "active" : ""}
-            onClick={() => setActiveTab("sent")}
-          >
-            Sent
-            <span>{sentRequests.length}</span>
-          </button>
-        </section>
-
-        {/* Received Requests */}
-        {activeTab === "received" && (
-          <section className="request-section">
-
-            <div className="request-section-heading">
-              <div>
-                <p>INCOMING</p>
-                <h2>Received Requests</h2>
-              </div>
-
-              <span className="request-count">
-                {receivedRequests.length} requests
-              </span>
-            </div>
-
-            {receivedRequests.length > 0 ? (
-              <div className="requests-list">
-
-                {receivedRequests.map((request) => (
-                  <article className="request-card" key={request.id}>
-
-                    <div className="request-person">
-                      <div className="request-avatar">
-                        {request.avatar}
-                      </div>
-
-                      <div>
-                        <h3>{request.name}</h3>
-                        <p>
-                          {request.department} · {request.year}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="request-exchange">
-
-                      <div>
-                        <span>CAN TEACH</span>
-                        <strong>{request.teaches}</strong>
-                      </div>
-
-                      <div className="request-arrow">
-                        ⇄
-                      </div>
-
-                      <div>
-                        <span>WANTS TO LEARN</span>
-                        <strong>{request.wants}</strong>
-                      </div>
-
-                    </div>
-
-                    <p className="request-message">
-                      "{request.message}"
-                    </p>
-
-                    <div className="request-actions">
-
-                      <button
-                        className="accept-button"
-                        onClick={() => handleAccept(request.id)}
-                      >
-                        ✓ Accept
-                      </button>
-
-                      <button
-                        className="decline-button"
-                        onClick={() => handleDecline(request.id)}
-                      >
-                        Decline
-                      </button>
-
-                    </div>
-
-                  </article>
-                ))}
-
-              </div>
-            ) : (
-              <div className="requests-empty">
-                <div className="empty-icon">✓</div>
-                <h3>No pending requests</h3>
-                <p>
-                  You don't have any new connection requests right now.
-                </p>
-              </div>
-            )}
-
-          </section>
-        )}
-
-        {/* Sent Requests */}
-        {activeTab === "sent" && (
-          <section className="request-section">
-
-            <div className="request-section-heading">
-              <div>
-                <p>OUTGOING</p>
-                <h2>Sent Requests</h2>
-              </div>
-
-              <span className="request-count">
-                {sentRequests.length} requests
-              </span>
-            </div>
-
-            {sentRequests.length > 0 ? (
-              <div className="requests-list">
-
-                {sentRequests.map((request) => (
-                  <article className="request-card" key={request.id}>
-
-                    <div className="request-person">
-                      <div className="request-avatar">
-                        {request.avatar}
-                      </div>
-
-                      <div>
-                        <h3>{request.name}</h3>
-                        <p>
-                          {request.department} · {request.year}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="request-exchange">
-
-                      <div>
-                        <span>THEY TEACH</span>
-                        <strong>{request.teaches}</strong>
-                      </div>
-
-                      <div className="request-arrow">
-                        ⇄
-                      </div>
-
-                      <div>
-                        <span>THEY WANT</span>
-                        <strong>{request.wants}</strong>
-                      </div>
-
-                    </div>
-
-                    <div className="sent-status">
-                      <span className="pending-dot"></span>
-                      Pending
-                    </div>
-
-                    <button
-                      className="cancel-button"
-                      onClick={() => handleCancel(request.id)}
-                    >
-                      Cancel Request
-                    </button>
-
-                  </article>
-                ))}
-
-              </div>
-            ) : (
-              <div className="requests-empty">
-                <div className="empty-icon">↗</div>
-
-                <h3>No sent requests</h3>
-
-                <p>
-                  Explore matches and connect with students who match
-                  your skills.
-                </p>
-
-                <Link to="/matches" className="explore-matches-button">
-                  Explore Matches
-                </Link>
-              </div>
-            )}
-
-          </section>
-        )}
-
-      </div>
-    </main>
-  );
+    {loading ? <div className="requests-modern-empty"><RefreshCw className="spin"/><h3>Loading requests</h3><p>Syncing with your account…</p></div> : !list.length ? <div className="requests-modern-empty"><MessageCircle size={30}/><h3>{tab === 'received' ? 'No requests yet' : 'Nothing sent yet'}</h3><p>{tab === 'received' ? 'When another student wants to exchange skills with you, their request will appear here.' : 'Find a reciprocal match and send your first exchange request.'}</p><Link to={tab === 'received' ? '/matches' : '/matches'} className="empty-link">Explore matches <ArrowRight size={14}/></Link></div> : <div className="request-list-modern">
+      {list.map(request => {
+        const received = tab === 'received';
+        const person = received ? { id: request.sender_id, name: request.sender_name, department: request.sender_department, college: request.sender_college, bio: request.sender_bio } : { id: request.receiver_id, name: request.receiver_name, department: request.receiver_department, college: request.receiver_college, bio: request.receiver_bio };
+        const pending = request.status === 'PENDING';
+        const accepted = request.status === 'ACCEPTED';
+        return <article className="request-modern-card" key={request.id}>
+          <div className="request-card-top"><Link to={`/profile/${person.id}`} className="request-person-modern"><div className="request-avatar-modern">{initials(person.name)}</div><div><strong>{person.name}</strong><span>{person.department || 'Student'}{person.college ? ` · ${person.college}` : ''}</span></div></Link><span className={`request-state ${String(request.status).toLowerCase()}`}>{request.status}</span></div>
+          <div className="exchange-strip"><div><small>{received ? 'THEY OFFER' : 'YOU OFFER'}</small><strong>{request.offered_skill_name}</strong></div><div className="exchange-symbol">⇄</div><div><small>{received ? 'THEY WANT' : 'YOU WANT'}</small><strong>{request.requested_skill_name}</strong></div></div>
+          {request.message && <div className="request-quote">“{request.message}”</div>}
+          <div className="request-footer"><span><Clock3 size={14}/> {dateText(request.created_at)}</span><div className="request-footer-actions">
+            {pending && received && <><button className="request-accept" disabled={busy === request.id} onClick={() => act(request.id, () => api.put(`/requests/${request.id}/accept`), 'Could not accept the request.')}><Check size={15}/> Accept</button><button className="request-decline" disabled={busy === request.id} onClick={() => act(request.id, () => api.put(`/requests/${request.id}/reject`), 'Could not decline the request.')}><X size={15}/> Decline</button></>}
+            {pending && !received && <button className="request-decline" disabled={busy === request.id} onClick={() => act(request.id, () => api.delete(`/requests/${request.id}`), 'Could not cancel the request.')}><X size={15}/> Cancel</button>}
+            {accepted && <><Link className="request-message" to={`/messages?userId=${person.id}`}><MessageCircle size={15}/> Message</Link>{scheduleFor === request.id ? <div className="schedule-inline"><input type="datetime-local" min={new Date().toISOString().slice(0,16)} value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}/><select value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))} aria-label="Session duration"><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option><option value={90}>90 minutes</option></select><button className="request-accept" disabled={busy === request.id} onClick={() => schedule(request.id)}><CalendarDays size={15}/> Schedule</button><button className="request-decline" onClick={() => {setScheduleFor(null);setScheduleAt('');setDurationMinutes(60)}}>Cancel</button></div> : <button className="request-accept" onClick={() => setScheduleFor(request.id)}><CalendarDays size={15}/> Schedule</button>}</>}
+          </div></div>
+        </article>;
+      })}
+    </div>}
+  </div>;
 }
-
-export default Requests;

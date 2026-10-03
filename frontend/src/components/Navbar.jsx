@@ -1,168 +1,64 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import "./Navbar.css";
+import { useEffect, useState } from 'react';
+import { Menu, X, ArrowUpRight, Compass, House, Workflow, LogOut, LayoutDashboard } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import './Navbar.css';
 
-function Navbar() {
-  const [menuOpen, setMenuOpen] = useState(false);
-
+export default function Navbar() {
+  const { user, logout } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
 
-  const closeMenu = () => {
-    setMenuOpen(false);
+  useEffect(() => setOpen(false), [location.pathname]);
+
+  const signOut = async () => {
+    await logout();
+    window.location.href = '/';
   };
 
-  // Go to Home page and then scroll to a section
-  const goToSection = (sectionId) => {
-    closeMenu();
-
-    if (location.pathname === "/") {
-      // Already on Home page
-      const section = document.getElementById(sectionId);
-
-      if (section) {
-        section.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
-    } else {
-      // On Login/Register/etc.
-      navigate(`/#${sectionId}`);
-    }
-  };
-
-  // Go back to the top of Home
-  const goToHome = () => {
-    closeMenu();
-
-    if (location.pathname === "/") {
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-    } else {
-      navigate("/");
-    }
-  };
+  const isActive = path => location.pathname === path;
 
   return (
-    <nav className="navbar">
+    <header className="navbar">
       <div className="navbar-container">
+        <Link className="navbar-brand" to={user ? '/dashboard' : '/'} aria-label="SkillSwap home">
+          <span className="navbar-brand-mark"><ArrowUpRight size={17} strokeWidth={2.6} /></span>
+          <span className="navbar-brand-word"><b>Skill</b><strong>Swap</strong></span>
+        </Link>
 
-        {/* Logo */}
-        <button
-          className="navbar-logo"
-          onClick={goToHome}
-        >
-          Skill<span>Swap</span>
-        </button>
+        <nav className="desktop-nav" aria-label="Primary navigation">
+          <Link className={`nav-link ${isActive('/') ? 'active' : ''}`} to="/"><House size={15}/> Home</Link>
+          <Link className={`nav-link ${isActive('/explore') ? 'active' : ''}`} to="/explore"><Compass size={15}/> Explore skills</Link>
+          <a className="nav-link" href="/#how-it-works"><Workflow size={15}/> How it works</a>
+        </nav>
 
-
-        {/* Desktop Navigation */}
-        <div className="desktop-nav">
-
-          <button
-            className="nav-link nav-button"
-            onClick={goToHome}
-          >
-            Home
-          </button>
-
-          <button
-            className="nav-link nav-button"
-            onClick={() => goToSection("explore")}
-          >
-            Explore
-          </button>
-
-          <button
-            className="nav-link nav-button"
-            onClick={() => goToSection("how-it-works")}
-          >
-            How It Works
-          </button>
-
-        </div>
-
-
-        {/* Desktop Login / Sign Up */}
         <div className="desktop-actions">
-
-          <Link
-            to="/login"
-            className="login-btn"
-          >
-            Login
-          </Link>
-
-          <Link
-            to="/register"
-            className="signup-btn"
-          >
-            Sign Up
-          </Link>
-
+          {user ? <>
+            <Link className="login-btn" to="/dashboard"><LayoutDashboard size={15}/> Dashboard</Link>
+            <button className="signup-btn" onClick={signOut}><LogOut size={15}/> Sign out</button>
+          </> : <>
+            <Link className="login-btn" to="/login">Log in</Link>
+            <Link className="signup-btn" to="/register">Create account <ArrowUpRight size={15}/></Link>
+          </>}
         </div>
 
-
-        {/* Mobile Menu Button */}
-        <button
-          className={`menu-button ${menuOpen ? "active" : ""}`}
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-        >
-          <span></span>
-          <span></span>
-          <span></span>
+        <button className={`menu-button ${open ? 'active' : ''}`} onClick={() => setOpen(v => !v)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
+          {open ? <X size={21}/> : <Menu size={21}/>} 
         </button>
-
-
-        {/* Mobile Navigation */}
-        <div
-          className={`mobile-menu ${
-            menuOpen ? "open" : ""
-          }`}
-        >
-
-          <button
-            onClick={goToHome}
-          >
-            Home
-          </button>
-
-          <button
-            onClick={() => goToSection("explore")}
-          >
-            Explore
-          </button>
-
-          <button
-            onClick={() => goToSection("how-it-works")}
-          >
-            How It Works
-          </button>
-
-          <Link
-            to="/login"
-            onClick={closeMenu}
-          >
-            Login
-          </Link>
-
-          <Link
-            to="/register"
-            onClick={closeMenu}
-          >
-            Sign Up
-          </Link>
-
-        </div>
-
       </div>
-    </nav>
+
+      <div className={`mobile-menu ${open ? 'open' : ''}`}>
+        <Link to="/"><House size={17}/> Home</Link>
+        <Link to="/explore"><Compass size={17}/> Explore skills</Link>
+        <a href="/#how-it-works"><Workflow size={17}/> How it works</a>
+        {user ? <>
+          <Link to="/dashboard"><LayoutDashboard size={17}/> Dashboard</Link>
+          <button onClick={signOut}><LogOut size={17}/> Sign out</button>
+        </> : <>
+          <Link to="/login">Log in</Link>
+          <Link className="mobile-primary" to="/register">Create account <ArrowUpRight size={16}/></Link>
+        </>}
+      </div>
+    </header>
   );
 }
-
-export default Navbar;

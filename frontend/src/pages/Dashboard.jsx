@@ -1,668 +1,87 @@
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, Clock3, MessageCircle, Sparkles, UsersRound } from 'lucide-react';
+import api, { getErrorMessage } from '../api';
+import { useAuth } from '../context/AuthContext';
+import './Dashboard.css';
 
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import "./Dashboard.css";
+function initials(name = 'Student') { return name.split(/\s+/).filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'S'; }
+function dateText(v) { if (!v) return 'Not scheduled'; const d = new Date(v); return Number.isNaN(d.getTime()) ? v : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
 
-function Dashboard() {
+export default function Dashboard() {
+  const { user, setUser } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const matches = [
-    {
-      name: "Arun Kumar",
-      department: "Computer Science",
-      teaches: "Python",
-      wants: "UI/UX Design",
-      match: "92%",
-      avatar: "A",
-    },
-    {
-      name: "Priya Sharma",
-      department: "Information Technology",
-      teaches: "Figma",
-      wants: "JavaScript",
-      match: "88%",
-      avatar: "P",
-    },
-    {
-      name: "Rahul Raj",
-      department: "ECE",
-      teaches: "React",
-      wants: "Data Science",
-      match: "84%",
-      avatar: "R",
-    },
-  ];
+  const load = useCallback(async () => {
+    try {
+      setError('');
+      const response = await api.get('/dashboard');
+      setData(response.data);
+      if (response.data.user) setUser(previous => ({ ...(previous || {}), ...response.data.user }));
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not load your dashboard.'));
+    } finally { setLoading(false); }
+  }, [setUser]);
 
-  const activities = [
-    {
-      title: "New skill match found",
-      description: "You matched with Arun Kumar",
-      time: "10 min ago",
-    },
-    {
-      title: "Profile updated",
-      description: "You added UI/UX Design",
-      time: "2 hours ago",
-    },
-    {
-      title: "Session completed",
-      description: "Python learning session completed",
-      time: "Yesterday",
-    },
-  ];
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 8000);
+    const refresh = () => load();
+    window.addEventListener('skillswap:refresh', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('skillswap:refresh', refresh); };
+  }, [load]);
 
-  return (
-    <main className="dashboard-page">
+  const skills = data?.skills || [];
+  const teach = useMemo(() => skills.filter(s => s.type === 'TEACH'), [skills]);
+  const learn = useMemo(() => skills.filter(s => s.type === 'LEARN'), [skills]);
+  const stats = data?.statistics || {};
+  const upcoming = data?.upcoming_sessions || [];
+  const requests = data?.recent_requests || [];
+  const notifications = data?.notifications || [];
 
-      {/* MOBILE OVERLAY */}
-      {sidebarOpen && (
-        <div
-          className="dashboard-overlay"
-          onClick={() => setSidebarOpen(false)}
-        ></div>
-      )}
+  if (loading) return <div className="dashboard-modern-loading"><div className="loading-orb"/><h2>Preparing your workspace</h2><p>Loading your skills, connections and sessions…</p></div>;
+  if (error) return <div className="dashboard-error"><h2>We couldn't load your workspace</h2><p>{error}</p><button onClick={load}>Try again</button></div>;
 
-      {/* SIDEBAR */}
-      <aside
-        className={`dashboard-sidebar ${
-          sidebarOpen ? "sidebar-open" : ""
-        }`}
-      >
+  return <div className="dashboard-modern">
+    <section className="welcome-panel">
+      <div><span className="dashboard-eyebrow">YOUR LEARNING WORKSPACE</span><h2>Welcome back, {user?.name?.split(' ')[0] || 'student'}.</h2><p>Your profile, matches, requests and learning progress are all connected here.</p></div>
+      <div className="welcome-actions"><Link to="/matches" className="dash-primary"><UsersRound size={17}/> Find matches</Link><Link to="/skill-setup" className="dash-secondary"><Sparkles size={17}/> Update skills</Link></div>
+    </section>
 
-        <div className="dashboard-logo">
-          Skill<span>Swap</span>
+    <section className="dashboard-grid stats-grid">
+      <article className="metric-card"><div className="metric-icon blue"><Sparkles size={19}/></div><div><span>Teaching skills</span><strong>{teach.length}</strong><small>{teach.length ? 'Ready to share' : 'Add your first skill'}</small></div></article>
+      <article className="metric-card"><div className="metric-icon purple"><BookOpen size={19}/></div><div><span>Learning goals</span><strong>{learn.length}</strong><small>{learn.length ? 'Skills you want to learn' : 'Choose a learning goal'}</small></div></article>
+      <article className="metric-card"><div className="metric-icon orange"><Clock3 size={19}/></div><div><span>Pending requests</span><strong>{Number(stats.incoming_pending_requests || 0)}</strong><small>{Number(stats.incoming_pending_requests || 0) ? 'Needs your response' : 'You are all caught up'}</small></div></article>
+      <article className="metric-card"><div className="metric-icon green"><CheckCircle2 size={19}/></div><div><span>Accepted exchanges</span><strong>{Number(stats.accepted_requests || 0)}</strong><small>Active connections</small></div></article>
+    </section>
+
+    <div className="dashboard-columns">
+      <section className="dashboard-card wide">
+        <div className="card-heading"><div><span>YOUR SKILL PROFILE</span><h3>What you teach & want to learn</h3></div><Link to="/skill-setup">Edit skills <ArrowRight size={15}/></Link></div>
+        <div className="skill-overview">
+          <div className="skill-column"><div className="skill-column-title"><span className="dot teach-dot"/>Teaching</div>{teach.length ? teach.slice(0, 6).map(s => <div className="skill-row" key={s.id}><span>{s.name}</span><b>{s.level === 'ADVANCED' ? 'PROFICIENT' : s.level}</b></div>) : <div className="soft-empty">Nothing added yet. <Link to="/skill-setup">Add teaching skills</Link></div>}</div>
+          <div className="skill-divider"/>
+          <div className="skill-column"><div className="skill-column-title"><span className="dot learn-dot"/>Learning</div>{learn.length ? learn.slice(0, 6).map(s => <div className="skill-row" key={s.id}><span>{s.name}</span><b>{s.level === 'ADVANCED' ? 'PROFICIENT' : s.level}</b></div>) : <div className="soft-empty">Nothing added yet. <Link to="/skill-setup">Add learning goals</Link></div>}</div>
         </div>
-
-        <div className="sidebar-profile">
-
-          <div className="sidebar-avatar">
-            Y
-          </div>
-
-          <div>
-            <h3>Yuvarani</h3>
-            <p>ECE Student</p>
-          </div>
-
-        </div>
-
-        <nav className="dashboard-nav">
-
-          {/* DASHBOARD */}
-          <Link
-            to="/dashboard"
-            className="dashboard-nav-item active"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>⌂</span>
-            Dashboard
-          </Link>
-
-          {/* PROFILE */}
-          <Link
-            to="/profile"
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>◯</span>
-            Profile
-          </Link>
-
-          {/* EXPLORE */}
-          <Link
-            to="/explore"
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>⌕</span>
-            Explore Skills
-          </Link>
-
-          {/* MATCHES */}
-          <Link
-            to="/matches"
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>✦</span>
-            Matches
-          </Link>
-
-          {/* REQUESTS */}
-          <Link
-            to="/requests"
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>...</span>
-            Requests
-          </Link>
-
-          {/* SESSIONS */}
-          <Link
-            to="/sessions"
-            className="dashboard-nav-item"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span>▣</span>
-            Sessions
-          </Link>
-          <Link
-  to="/messages"
-  className="dashboard-nav-item"
-  onClick={() => setSidebarOpen(false)}
->
-  <span>◌</span>
-  Messages
-</Link>
-
-
-          
-
-          {/* NOTIFICATIONS */}
-          <Link
-  to="/notifications"
-  className="dashboard-nav-item"
-  onClick={() => setSidebarOpen(false)}
->
-  <span>◉</span>
-  Notifications
-</Link>
-
-        </nav>
-
-        {/* SIDEBAR BOTTOM */}
-        <div className="sidebar-bottom">
-
-          <Link
-  to="/settings"
-  className="dashboard-nav-item"
-  onClick={() => setSidebarOpen(false)}
->
-  <span>⚙</span>
-  Settings
-</Link>
-
-          <Link
-            to="/"
-            className="dashboard-nav-item logout-item"
-          >
-            <span>↪</span>
-            Logout
-          </Link>
-
-        </div>
-
-      </aside>
-
-      {/* MAIN AREA */}
-      <div className="dashboard-main">
-
-        {/* TOPBAR */}
-        <header className="dashboard-topbar">
-
-          <button
-            className="dashboard-menu-button"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            ☰
-          </button>
-
-          <div className="dashboard-search">
-            <span>⌕</span>
-
-            <input
-              type="text"
-              placeholder="Search skills, people..."
-            />
-          </div>
-
-          <div className="dashboard-top-actions">
-
-            
-
-            <div className="topbar-user">
-
-              <div
-  className="topbar-avatar"
-  onClick={() => navigate("/profile")}
-  role="button"
-  tabIndex={0}
->
-  Y
-</div>
-
-              <div>
-                <strong>Yuvarani</strong>
-                <small>ECE</small>
-              </div>
-
-            </div>
-
-          </div>
-
-        </header>
-
-        {/* DASHBOARD CONTENT */}
-        <div className="dashboard-content">
-
-          {/* WELCOME */}
-          <section className="dashboard-welcome">
-
-            <div>
-              <p className="dashboard-label">
-                YOUR DASHBOARD
-              </p>
-
-              <h1>
-                Welcome back, Yuvarani 👋
-              </h1>
-
-              <p>
-                Continue learning, sharing and connecting
-                with your SkillSwap community.
-              </p>
-            </div>
-
-            <Link
-              to="/explore"
-              className="dashboard-primary-button"
-            >
-              Find Skills
-            </Link>
-
-          </section>
-
-          {/* STATS */}
-          <section className="dashboard-stats">
-
-            <div className="dashboard-stat-card">
-
-              <div className="stat-icon blue">
-                ✦
-              </div>
-
-              <div>
-                <span>Skill Points</span>
-                <strong>245</strong>
-              </div>
-
-            </div>
-
-            <div className="dashboard-stat-card">
-
-              <div className="stat-icon cyan">
-                ⇄
-              </div>
-
-              <div>
-                <span>Skill Matches</span>
-                <strong>18</strong>
-              </div>
-
-            </div>
-
-            <div className="dashboard-stat-card">
-
-              <div className="stat-icon green">
-                ✓
-              </div>
-
-              <div>
-                <span>Sessions</span>
-                <strong>12</strong>
-              </div>
-
-            </div>
-
-            <div className="dashboard-stat-card">
-
-              <div className="stat-icon purple">
-                ★
-              </div>
-
-              <div>
-                <span>Rating</span>
-                <strong>4.8</strong>
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* MAIN GRID */}
-          <div className="dashboard-grid">
-
-            {/* MATCHES */}
-            <section className="dashboard-panel matches-panel">
-
-              <div className="panel-header">
-
-                <div>
-                  <p className="panel-label">
-                    DISCOVER
-                  </p>
-
-                  <h2>
-                    Suggested Matches
-                  </h2>
-                </div>
-
-                <Link to="/matches">
-                  View all →
-                </Link>
-
-              </div>
-
-              <div className="matches-list">
-
-                {matches.map((match) => (
-
-                  <div
-                    className="match-item"
-                    key={match.name}
-                  >
-
-                    <div className="match-person">
-
-                      <div className="match-avatar">
-                        {match.avatar}
-                      </div>
-
-                      <div>
-                        <h3>{match.name}</h3>
-                        <p>{match.department}</p>
-                      </div>
-
-                    </div>
-
-                    <div className="match-skills">
-
-                      <span>
-                        Teaches: <strong>{match.teaches}</strong>
-                      </span>
-
-                      <span>
-                        Wants: <strong>{match.wants}</strong>
-                      </span>
-
-                    </div>
-
-                    <div className="match-score">
-                      <strong>{match.match}</strong>
-                      <span>Match</span>
-                    </div>
-
-                    <button className="match-connect">
-                      Connect
-                    </button>
-
-                  </div>
-
-                ))}
-
-              </div>
-
-            </section>
-
-            {/* SKILLS */}
-            <section className="dashboard-panel skills-panel">
-
-              <div className="panel-header">
-
-                <div>
-                  <p className="panel-label">
-                    YOUR SKILLS
-                  </p>
-
-                  <h2>
-                    Skills
-                  </h2>
-                </div>
-
-               <button onClick={() => navigate("/skill-setup")}>
-  Edit
-</button>
-              </div>
-
-              <div className="skill-group">
-
-                <span className="skill-group-label">
-                  I can teach
-                </span>
-
-                <div className="dashboard-skill-tags">
-
-                  <span>Python</span>
-                  <span>C++</span>
-                  <span>HTML</span>
-                  <span>CSS</span>
-
-                </div>
-
-              </div>
-
-              <div className="skill-group">
-
-                <span className="skill-group-label">
-                  I want to learn
-                </span>
-
-                <div className="dashboard-skill-tags learning">
-
-                  <span>UI/UX</span>
-                  <span>React</span>
-                  <span>Figma</span>
-                  <span>JavaScript</span>
-
-                </div>
-
-              </div>
-
-            </section>
-
-            {/* REQUESTS */}
-            <section className="dashboard-panel requests-panel">
-
-              <div className="panel-header">
-
-                <div>
-                  <p className="panel-label">
-                    ACTIVITY
-                  </p>
-
-                  <h2>
-                    Requests
-                  </h2>
-                </div>
-
-                <Link to="/requests">
-                  View all →
-                </Link>
-
-              </div>
-
-              <div className="request-card">
-
-                <div className="request-avatar">
-                  A
-                </div>
-
-                <div className="request-info">
-
-                  <h3>Arun Kumar</h3>
-
-                  <p>
-                    Wants to learn Python from you
-                  </p>
-
-                  <small>
-                    15 minutes ago
-                  </small>
-
-                </div>
-
-                <div className="request-actions">
-
-                  <button className="accept-button">
-                    Accept
-                  </button>
-
-                  <button className="reject-button">
-                    Decline
-                  </button>
-
-                </div>
-
-              </div>
-
-              <div className="request-card">
-
-                <div className="request-avatar">
-                  P
-                </div>
-
-                <div className="request-info">
-
-                  <h3>Priya Sharma</h3>
-
-                  <p>
-                    Wants to exchange Figma ↔ JavaScript
-                  </p>
-
-                  <small>
-                    2 hours ago
-                  </small>
-
-                </div>
-
-                <div className="request-actions">
-
-                  <button className="accept-button">
-                    Accept
-                  </button>
-
-                  <button className="reject-button">
-                    Decline
-                  </button>
-
-                </div>
-
-              </div>
-
-            </section>
-
-            {/* UPCOMING SESSION */}
-            <section className="dashboard-panel session-panel">
-
-              <div className="panel-header">
-
-                <div>
-                  <p className="panel-label">
-                    YOUR SCHEDULE
-                  </p>
-
-                  <h2>
-                    Upcoming Session
-                  </h2>
-                </div>
-
-                <Link to="/sessions">
-                  View all →
-                </Link>
-
-              </div>
-
-              <div className="session-card">
-
-                <div className="session-date">
-                  <strong>28</strong>
-                  <span>SEP</span>
-                </div>
-
-                <div className="session-info">
-
-                  <h3>
-                    Python Basics
-                  </h3>
-
-                  <p>
-                    With Arun Kumar
-                  </p>
-
-                  <span>
-                    6:00 PM – 7:00 PM
-                  </span>
-
-                </div>
-
-                <Link to="/sessions">
-                  Join
-                </Link>
-
-              </div>
-
-            </section>
-
-          </div>
-
-          {/* RECENT ACTIVITY */}
-          <section className="dashboard-panel activity-panel">
-
-            <div className="panel-header">
-
-              <div>
-                <p className="panel-label">
-                  RECENT
-                </p>
-
-                <h2>
-                  Recent Activity
-                </h2>
-              </div>
-
-              <button>
-                View all →
-              </button>
-
-            </div>
-
-            <div className="activity-list">
-
-              {activities.map((activity) => (
-
-                <div
-                  className="activity-item"
-                  key={activity.title}
-                >
-
-                  <div className="activity-dot"></div>
-
-                  <div>
-                    <h3>{activity.title}</h3>
-                    <p>{activity.description}</p>
-                  </div>
-
-                  <span>
-                    {activity.time}
-                  </span>
-
-                </div>
-
-              ))}
-
-            </div>
-
-          </section>
-
-        </div>
-
-      </div>
-
-    </main>
-  );
+      </section>
+
+      <section className="dashboard-card">
+        <div className="card-heading"><div><span>UP NEXT</span><h3>Sessions</h3></div><Link to="/sessions">View all <ArrowRight size={15}/></Link></div>
+        {upcoming.length ? upcoming.slice(0, 3).map(s => { const other = Number(s.user1_id) === Number(user?.id) ? s.user2_name : s.user1_name; return <button className="mini-session" key={s.id} onClick={() => navigate('/sessions')}><div className="mini-avatar">{initials(other)}</div><div><strong>{other || 'Connection'}</strong><span>{dateText(s.scheduled_at)}</span></div><CalendarDays size={16}/></button>; }) : <div className="card-empty"><CalendarDays size={27}/><strong>No sessions scheduled</strong><span>Accept a request to start planning your first exchange.</span><Link to="/requests">View requests</Link></div>}
+      </section>
+
+      <section className="dashboard-card wide">
+        <div className="card-heading"><div><span>ACTIVITY</span><h3>Recent exchanges</h3></div><Link to="/requests">Manage requests <ArrowRight size={15}/></Link></div>
+        {requests.length ? <div className="activity-list">{requests.map(r => { const isReceiver = Number(r.receiver_id) === Number(user?.id); const person = isReceiver ? r.sender_name : r.receiver_name; return <div className="activity-row" key={r.id}><div className="activity-avatar">{initials(person)}</div><div className="activity-copy"><strong>{person}</strong><span>{r.offered_skill_name} ↔ {r.requested_skill_name}</span></div><span className={`status-pill ${String(r.status).toLowerCase()}`}>{r.status}</span></div>; })}</div> : <div className="soft-empty">Your exchange activity will appear here.</div>}
+      </section>
+
+      <section className="dashboard-card">
+        <div className="card-heading"><div><span>NOTIFICATIONS</span><h3>Latest updates</h3></div><Link to="/notifications">See all <ArrowRight size={15}/></Link></div>
+        {notifications.length ? notifications.slice(0, 4).map(n => <div className="notification-row" key={n.id}><div className="notification-icon"><MessageCircle size={15}/></div><div><strong>{n.title}</strong><span>{n.message}</span></div></div>) : <div className="card-empty"><MessageCircle size={27}/><strong>No new notifications</strong><span>You're up to date.</span></div>}
+      </section>
+    </div>
+  </div>;
 }
-
-export default Dashboard;
