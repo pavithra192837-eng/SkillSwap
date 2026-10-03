@@ -31,11 +31,12 @@ useEffect(()=>{if(sessionMeta?.status==='COMPLETED'&&!endedRef.current)finish(tr
 const buildPeer=useCallback(async()=>{
   await ensureFirebase();
   if(!callRef||!targetId)throw new Error('The other participant is missing.');
-  if(pcRef.current&&!['closed','failed'].includes(pcRef.current.connectionState))return;
 
-  const generation=++callGenerationRef.current;
-  const isLive=()=>generation===callGenerationRef.current&&!endedRef.current;
-  const isOpen=pc=>isLive()&&pcRef.current===pc&&pc.signalingState!=='closed'&&pc.connectionState!=='closed';
+  // One WebRTC object owns the entire call. We never reuse a closed peer and
+  // never call createOffer/createAnswer from Firebase value changes directly.
+  const runId=++callGenerationRef.current;
+  const alive=()=>runId===callGenerationRef.current&&!endedRef.current;
+  const current=pc=>alive()&&pcRef.current===pc&&pc.signalingState!=='closed'&&pc.connectionState!=='closed';
   const iceServers=[
     {urls:'stun:stun.l.google.com:19302'},
     {urls:'stun:stun1.l.google.com:19302'},
@@ -44,210 +45,190 @@ const buildPeer=useCallback(async()=>{
       ? [{urls:import.meta.env.VITE_TURN_URL,username:import.meta.env.VITE_TURN_USERNAME,credential:import.meta.env.VITE_TURN_CREDENTIAL}]
       : [])
   ];
-
   const pc=new RTCPeerConnection({iceServers,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
   pcRef.current=pc;
-  remoteReadyRef.current=false;
-  candidateQueueRef.current=[];
   remoteStreamRef.current=new MediaStream();
+  candidateQueueRef.current=[];
+  remoteReadyRef.current=false;
+  let makingOffer=false;
+  let ignoreOffer=false;
+  let disposed=false;
+  const polite=incoming;
 
-  const audioTransceiver=pc.addTransceiver('audio',{direction:'sendrecv'});
-  const videoTransceiver=initialMode==='video'
-    ? pc.addTransceiver('video',{direction:'sendrecv'})
-    : null;
-
-  const closeIfCurrent=()=>{
+  const closeCurrent=()=>{
     if(pcRef.current!==pc)return;
-    try{
-      pc.ontrack=null;pc.onicecandidate=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;
-      pc.close();
-    }catch{}
+    disposed=true;
+    try{pc.ontrack=null;pc.onicecandidate=null;pc.onnegotiationneeded=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;pc.close()}catch{}
     pcRef.current=null;
   };
-  const failIfStale=()=>!isOpen(pc);
+  const safe=()=>current(pc);
 
-  try{
-    const constraints=initialMode==='video'
-      ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},facingMode:'user'}}
-      : {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false};
+  const sendSignal=async(payload)=>{
+    if(!safe())return;
+    await push(ref(realtimeDb,`calls/${callId}/signals`),{
+      from:Number(user.id),
+      ...payload,
+      createdAt:serverTimestamp()
+    });
+  };
 
-    let media;
+  const attachRemote=event=>{
+    if(!safe())return;
+    const remote=remoteStreamRef.current||new MediaStream();
+    remoteStreamRef.current=remote;
+    if(!remote.getTracks().some(t=>t.id===event.track.id))remote.addTrack(event.track);
+    if(remoteVideoRef.current)remoteVideoRef.current.srcObject=remote;
+    if(remoteAudioRef.current)remoteAudioRef.current.srcObject=remote;
+    setRemoteReady(true);
+    remoteAudioRef.current?.play().catch(()=>{});
+    remoteVideoRef.current?.play().catch(()=>{});
+  };
+  pc.ontrack=attachRemote;
+
+  pc.onicecandidate=event=>{
+    if(!event.candidate||!safe())return;
+    sendSignal({kind:'candidate',candidate:event.candidate.toJSON()}).catch(()=>{});
+  };
+
+  pc.onconnectionstatechange=()=>{
+    if(!safe())return;
+    const state=pc.connectionState;
+    if(state==='connected'){
+      connectedRef.current=true;
+      startedAtRef.current=startedAtRef.current||Date.now();
+      setStatus('Connected');
+    }else if(state==='connecting')setStatus('Connecting');
+    else if(state==='disconnected')setStatus('Reconnecting…');
+    else if(state==='failed'){
+      setStatus('Connection failed');
+      setError(import.meta.env.VITE_TURN_URL
+        ? 'The media connection failed. Check the TURN server URL, username and credential.'
+        : 'The two devices could not find a direct media path. Add a TURN server for reliable phone-to-laptop calls.');
+    }
+  };
+  pc.oniceconnectionstatechange=()=>{
+    if(!safe())return;
+    if(pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed')setStatus('Connected');
+    if(pc.iceConnectionState==='failed')setError(import.meta.env.VITE_TURN_URL
+      ? 'ICE failed. Verify your TURN server.'
+      : 'ICE failed. A TURN server is needed for some phone-to-laptop networks.');
+  };
+
+  // This call has one initial negotiation. Tracks are added before the offer,
+  // so the SDP always contains the exact audio/video media we intend to use.
+  // We deliberately do not renegotiate when mute/camera is toggled: those
+  // controls only enable/disable an existing sender track.
+
+  const handleDescription=async(description)=>{
+    if(!safe()||!description)return;
     try{
-      media=await navigator.mediaDevices.getUserMedia(constraints);
-    }catch(error){
-      if(error?.name==='AbortError'){
-        await new Promise(resolve=>setTimeout(resolve,350));
-        if(failIfStale())return;
-        media=await navigator.mediaDevices.getUserMedia(constraints);
-      }else throw error;
-    }
+      const offerCollision=description.type==='offer' && (makingOffer || pc.signalingState!=='stable');
+      ignoreOffer=!polite && offerCollision;
+      if(ignoreOffer)return;
 
-    if(failIfStale()){media.getTracks().forEach(t=>t.stop());closeIfCurrent();return;}
-    streamRef.current=media;
-
-    const audioTrack=media.getAudioTracks()[0];
-    if(!audioTrack)throw new Error('Microphone was not available. Allow microphone access and try again.');
-    if(failIfStale()){media.getTracks().forEach(t=>t.stop());return;}
-    await audioTransceiver.sender.replaceTrack(audioTrack);
-    if(failIfStale()){media.getTracks().forEach(t=>t.stop());return;}
-
-    if(videoTransceiver){
-      const videoTrack=media.getVideoTracks()[0];
-      if(!videoTrack)throw new Error('Camera was not available. Allow camera access and try again.');
-      await videoTransceiver.sender.replaceTrack(videoTrack);
-    }
-    if(failIfStale()){media.getTracks().forEach(t=>t.stop());return;}
-
-    if(localVideoRef.current)localVideoRef.current.srcObject=media;
-
-    pc.ontrack=event=>{
-      if(!isOpen(pc))return;
-      const remote=remoteStreamRef.current||new MediaStream();
-      remoteStreamRef.current=remote;
-      if(event.streams?.[0]){
-        for(const track of event.streams[0].getTracks()){
-          if(!remote.getTracks().some(t=>t.id===track.id))remote.addTrack(track);
-        }
-      }else if(!remote.getTracks().some(t=>t.id===event.track.id))remote.addTrack(event.track);
-      if(remoteVideoRef.current)remoteVideoRef.current.srcObject=remote;
-      if(remoteAudioRef.current)remoteAudioRef.current.srcObject=remote;
-      setRemoteReady(true);
-      remoteAudioRef.current?.play().catch(()=>{});
-      remoteVideoRef.current?.play().catch(()=>{});
-    };
-
-    const markConnected=()=>{
-      if(!isOpen(pc))return;
-      if(pc.connectionState==='connected'||pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'){
-        if(!connectedRef.current){connectedRef.current=true;startedAtRef.current=Date.now();}
-        setStatus('Connected');
-      }
-    };
-    pc.onconnectionstatechange=()=>{
-      if(!isOpen(pc))return;
-      markConnected();
-      if(pc.connectionState==='disconnected')setStatus('Reconnecting…');
-      if(pc.connectionState==='failed'&&!endedRef.current){
-        setStatus('Connection failed');
-        setError(import.meta.env.VITE_TURN_URL
-          ? 'The network could not establish a media path. Check your TURN server credentials.'
-          : 'Phone-to-laptop calls may require a TURN server on different networks. Add VITE_TURN_URL, VITE_TURN_USERNAME and VITE_TURN_CREDENTIAL to your frontend environment.');
-      }
-    };
-    pc.oniceconnectionstatechange=()=>{
-      if(!isOpen(pc))return;
-      markConnected();
-      if(pc.iceConnectionState==='disconnected')setStatus('Reconnecting…');
-      if(pc.iceConnectionState==='failed'&&!endedRef.current){
-        setStatus('Connection failed');
-        setError(import.meta.env.VITE_TURN_URL
-          ? 'ICE failed. Verify the TURN server and credentials.'
-          : 'ICE failed between these networks. A TURN server is required for reliable phone-to-laptop calls across restrictive networks.');
-      }
-    };
-
-    const ownCandidates=incoming?'receiverCandidates':'callerCandidates';
-    const remoteCandidates=incoming?'callerCandidates':'receiverCandidates';
-    pc.onicecandidate=event=>{
-      if(!event.candidate||!isOpen(pc))return;
-      push(ref(realtimeDb,`calls/${callId}/${ownCandidates}`),event.candidate.toJSON()).catch(()=>{});
-    };
-
-    const addCandidate=async candidate=>{
-      if(!isOpen(pc)||!candidate)return;
-      try{await pc.addIceCandidate(new RTCIceCandidate(candidate));}
-      catch(error){
-        if(error?.name!=='InvalidStateError'&&isOpen(pc))console.warn('ICE candidate rejected',error);
-      }
-    };
-    const flushCandidates=async()=>{
-      if(!isOpen(pc)||!remoteReadyRef.current)return;
+      // setRemoteDescription() performs the required rollback for a polite
+      // peer when an offer collides with its own pending offer.
+      await pc.setRemoteDescription(new RTCSessionDescription(description));
+      if(!safe())return;
+      remoteReadyRef.current=true;
       const pending=candidateQueueRef.current.splice(0);
-      for(const candidate of pending){if(!isOpen(pc))break;await addCandidate(candidate);}
-    };
-
-    const applyRemoteDescription=async description=>{
-      if(!isOpen(pc)||!description)return false;
-      try{
-        if(description.type==='offer'&&pc.signalingState!=='stable')return false;
-        if(description.type==='answer'&&pc.signalingState!=='have-local-offer')return false;
-        await pc.setRemoteDescription(new RTCSessionDescription(description));
-        if(!isOpen(pc))return false;
-        remoteReadyRef.current=true;
-        await flushCandidates();
-        return true;
-      }catch(error){
-        if(isOpen(pc)&&error?.name!=='InvalidStateError')setError(`WebRTC negotiation failed: ${error?.message||error?.name||'unknown error'}`);
-        return false;
+      for(const c of pending){
+        if(!safe())return;
+        try{await pc.addIceCandidate(new RTCIceCandidate(c));}catch(e){if(!ignoreOffer&&e?.name!=='InvalidStateError')throw e;}
       }
-    };
-
-    const callUnsub=onValue(callRef,async snap=>{
-      const data=snap.val();
-      if(!data||!isLive())return;
-      if(data.status==='ENDED'){
-        finishRef.current?.(true,data.endReason||'REMOTE_ENDED');
-        return;
+      if(description.type==='offer'){
+        await pc.setLocalDescription();
+        if(!safe()||!pc.localDescription)return;
+        await sendSignal({kind:'description',description:{type:pc.localDescription.type,sdp:pc.localDescription.sdp}});
       }
-      try{
-        if(incoming){
-          if(data.offer&&!remoteReadyRef.current){
-            const applied=await applyRemoteDescription(data.offer);
-            if(!applied||!isOpen(pc))return;
-            const answer=await pc.createAnswer();
-            if(!isOpen(pc))return;
-            await pc.setLocalDescription(answer);
-            if(!isOpen(pc))return;
-            await update(callRef,{answer:{type:answer.type,sdp:answer.sdp},status:'ACTIVE',answeredAt:serverTimestamp()});
-            if(isOpen(pc))setStatus('Connecting');
-          }
-        }else if(data.answer&&!remoteReadyRef.current){
-          await applyRemoteDescription(data.answer);
-        }
-      }catch(error){
-        if(isOpen(pc)&&!endedRef.current)setError(`Could not complete the call setup: ${error?.message||error?.name||'unknown error'}`);
-      }
-    });
-    cleanupRef.current.push(callUnsub);
-
-    const candidateUnsub=onChildAdded(ref(realtimeDb,`calls/${callId}/${remoteCandidates}`),async snap=>{
-      const candidate=snap.val();
-      if(!candidate||!isOpen(pc))return;
-      if(!remoteReadyRef.current)candidateQueueRef.current.push(candidate);
-      else await addCandidate(candidate);
-    });
-    cleanupRef.current.push(candidateUnsub);
-
-    await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
-    if(failIfStale())return;
-
-    if(!incoming){
-      const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:initialMode==='video'});
-      if(failIfStale())return;
-      await pc.setLocalDescription(offer);
-      if(failIfStale())return;
-      await update(callRef,{
-        callerId:Number(user.id),calleeId:targetId,callerName:user.name,
-        type:initialMode==='video'?'video':'voice',status:'RINGING',
-        offer:{type:offer.type,sdp:offer.sdp},createdAt:serverTimestamp()
-      });
-      if(failIfStale())return;
-      await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{
-        callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()
-      });
+    }catch(error){
+      if(safe()&&error?.name!=='InvalidStateError'&&!endedRef.current)setError(`Could not complete call negotiation: ${error?.message||error?.name||'unknown error'}`);
     }
+  };
+
+  const handleCandidate=async candidate=>{
+    if(!candidate||!safe()||ignoreOffer)return;
+    if(!remoteReadyRef.current){candidateQueueRef.current.push(candidate);return;}
+    try{await pc.addIceCandidate(new RTCIceCandidate(candidate));}
+    catch(error){if(error?.name!=='InvalidStateError'&&safe())console.warn('ICE candidate rejected',error);}
+  };
+
+  const signalUnsub=onChildAdded(ref(realtimeDb,`calls/${callId}/signals`),async snap=>{
+    const msg=snap.val();
+    if(!msg||Number(msg.from)===Number(user.id)||!safe())return;
+    if(msg.kind==='description')await handleDescription(msg.description);
+    else if(msg.kind==='candidate')await handleCandidate(msg.candidate);
+  });
+  cleanupRef.current.push(signalUnsub);
+
+  const mediaConstraints=initialMode==='video'
+    ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},facingMode:'user'}}
+    : {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false};
+  let media;
+  try{
+    media=await navigator.mediaDevices.getUserMedia(mediaConstraints);
   }catch(error){
-    if(isLive()){
-      const msg=error?.name==='NotAllowedError'
-        ? 'Microphone/camera permission was denied. Allow access and try again.'
-        : error?.name==='AbortError'
-          ? 'The browser aborted media access. Close any other app using the microphone/camera and try again.'
-          : error?.message||'Could not start the call.';
-      setError(msg);setStatus('Unavailable');
+    if(error?.name==='AbortError'&&alive()){
+      await new Promise(r=>setTimeout(r,400));
+      if(!alive())return;
+      media=await navigator.mediaDevices.getUserMedia(mediaConstraints);
+    }else throw error;
+  }
+  if(!safe()){media?.getTracks().forEach(t=>t.stop());return;}
+  streamRef.current=media;
+  if(localVideoRef.current)localVideoRef.current.srcObject=media;
+
+  // Add tracks exactly once, before negotiation. This is the standard WebRTC
+  // ordering: media first, negotiation second.
+  for(const track of media.getTracks()){
+    if(!safe()){media.getTracks().forEach(t=>t.stop());return;}
+    pc.addTrack(track,media);
+  }
+
+  const callMeta=incoming
+    ? {calleeId:Number(user.id),type:initialMode==='video'?'video':'voice',status:'ACTIVE'}
+    : {callerId:Number(user.id),calleeId:targetId,callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:serverTimestamp()};
+  await update(callRef,callMeta);
+  if(!alive())return;
+
+  if(!incoming){
+    await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{
+      callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()
+    });
+  }
+
+  await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
+
+  // Caller creates exactly one initial offer. The receiver never creates an
+  // offer on its own, which keeps this Firebase signaling flow deterministic.
+  if(!incoming&&safe()){
+    try{
+      const offer=await pc.createOffer();
+      if(!safe())return;
+      await pc.setLocalDescription(offer);
+      if(!safe()||!pc.localDescription)return;
+      await sendSignal({kind:'description',description:{type:'offer',sdp:pc.localDescription.sdp}});
+    }catch(error){
+      if(safe()&&!endedRef.current)setError(`Could not start the call negotiation: ${error?.message||error?.name||'unknown error'}`);
     }
-    closeIfCurrent();
   }
 },[callId,callRef,incoming,initialMode,targetId,user.id,user.name]);
+
+useEffect(()=>{
+  let disposed=false;
+  buildPeer().catch(error=>{
+    if(!disposed&&!endedRef.current){
+      const msg=error?.name==='NotAllowedError'?'Microphone/camera permission was denied. Allow access and try again.':error?.name==='AbortError'?'The browser aborted microphone/camera access. Close other apps using the device camera or microphone and try again.':error?.message||'Could not start the call.';
+      setError(msg);setStatus('Unavailable');
+    }
+  });
+  return()=>{
+    disposed=true;
+    callGenerationRef.current+=1;
+    cleanup();
+    stopMedia();
+  };
+},[buildPeer,cleanup,stopMedia]);
 
 useEffect(()=>{
   let disposed=false;
