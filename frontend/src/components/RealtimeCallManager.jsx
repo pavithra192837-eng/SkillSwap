@@ -23,8 +23,13 @@ export default function RealtimeCallManager() {
         if (!alive) return;
         unsubscribe = onValue(ref(realtimeDb, `incomingCalls/${user.id}`), snap => {
           const calls = snap.val() || {};
-          const entry = Object.entries(calls).find(([, call]) => call?.status === 'RINGING');
-          if (!entry || location.pathname.endsWith('-call')) return;
+          const now = Date.now();
+          const candidates = Object.entries(calls).filter(([, call]) => call?.status === 'RINGING');
+          const fresh = candidates.find(([, call]) => !call?.createdAt || now - Number(call.createdAt) < 120000);
+          const stale = candidates.filter(([, call]) => call?.createdAt && now - Number(call.createdAt) >= 120000);
+          stale.forEach(([staleCallId]) => remove(ref(realtimeDb, `incomingCalls/${user.id}/${staleCallId}`)).catch(() => {}));
+          const entry = fresh;
+          if (!entry || location.pathname.endsWith('-call')) { setIncoming(null); return; }
           const [callId, call] = entry;
           setIncoming({ callId, ...call });
         });

@@ -1,322 +1,406 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Camera, CameraOff, Check, Maximize2, Mic, MicOff, MessageCircle, PhoneOff, Send, ShieldCheck, Volume2, X, Video, Phone, MoreHorizontal } from 'lucide-react';
-import { onChildAdded, onDisconnect, onValue, push, ref, remove, serverTimestamp, set, update } from 'firebase/database';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Check, Maximize2, MessageCircle, Phone, PhoneOff, Send, ShieldCheck, Video, X } from 'lucide-react';
+import { get, onValue, push, ref, remove, serverTimestamp, set, update } from 'firebase/database';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { firebaseAuth, realtimeDb, firebaseConfigured, firebaseStorage } from '../firebase';
-import { useAuth } from '../context/AuthContext'; import api from '../api'; import './Call.css';
-const randomId=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(16).slice(2)}`; const chatId=(a,b)=>[Number(a),Number(b)].sort((x,y)=>x-y).join('_');
-const initials=(name='Student')=>name.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase()||'S';
-async function ensureFirebase(){if(!firebaseConfigured||!firebaseAuth||!realtimeDb)throw new Error('Realtime calling is not configured. Add Firebase variables and enable Anonymous Authentication.');if(!firebaseAuth.currentUser)await signInAnonymously(firebaseAuth);}
-export default function Call(){const {user}=useAuth();const navigate=useNavigate();const location=useLocation();const [params]=useSearchParams();const incoming=params.get('incoming')==='1';const callId=params.get('callId')||useMemo(randomId,[]);const targetId=Number(params.get('userId'));const targetName=params.get('name')||'SkillSwap student';const sessionId=params.get('sessionId');const initialMode=location.pathname.includes('video-call')?'video':'audio';
-const pcRef=useRef(null),streamRef=useRef(null),localVideoRef=useRef(null),remoteVideoRef=useRef(null),remoteAudioRef=useRef(null),remoteStreamRef=useRef(null),cleanupRef=useRef([]),chatCleanupRef=useRef([]),candidateQueueRef=useRef([]),remoteReadyRef=useRef(false),endedRef=useRef(false),connectedRef=useRef(false),completingRef=useRef(false),startedAtRef=useRef(0),callGenerationRef=useRef(0),finishRef=useRef(null);
-const callRef=useMemo(()=>realtimeDb?ref(realtimeDb,`calls/${callId}`):null,[callId]);
-const [mode,setMode]=useState(initialMode),[status,setStatus]=useState(incoming?'Connecting':'Calling'),[error,setError]=useState(''),[muted,setMuted]=useState(false),[cameraOff,setCameraOff]=useState(initialMode==='audio'),[chatOpen,setChatOpen]=useState(false),[elapsed,setElapsed]=useState(0),[messages,setMessages]=useState([]),[message,setMessage]=useState(''),[chatReady,setChatReady]=useState(false),[fullscreen,setFullscreen]=useState(false),[switching,setSwitching]=useState(false),[remoteReady,setRemoteReady]=useState(false),[speakerOn,setSpeakerOn]=useState(false);
-const [sessionMeta,setSessionMeta]=useState(null),[sessionRemaining,setSessionRemaining]=useState(null),[sessionSummary,setSessionSummary]=useState(null);
-const cleanup=useCallback(()=>{cleanupRef.current.forEach(fn=>{try{fn()}catch{}});cleanupRef.current=[]},[]);
-const cleanupChat=useCallback(()=>{chatCleanupRef.current.forEach(fn=>{try{fn()}catch{}});chatCleanupRef.current=[]},[]);
-const stopMedia=useCallback(()=>{streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;if(localVideoRef.current)localVideoRef.current.srcObject=null;if(remoteVideoRef.current)remoteVideoRef.current.srcObject=null;if(remoteAudioRef.current)remoteAudioRef.current.srcObject=null;const pc=pcRef.current;pcRef.current=null;if(pc){try{pc.ontrack=null;pc.onicecandidate=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;pc.close()}catch{}}},[]);
-const completeSession=useCallback(async(reason='COMPLETED')=>{if(!sessionId||completingRef.current)return;completingRef.current=true;try{await api.put(`/sessions/${sessionId}/complete`,{reason})}catch{}},[sessionId]);
-const finish=useCallback(async(remote=false,reason='USER_ENDED')=>{if(endedRef.current)return;endedRef.current=true;callGenerationRef.current+=1;const completesLesson=reason==='USER_ENDED'||reason==='TIME_EXPIRED';setStatus(reason==='TIME_EXPIRED'?'Time is up':remote?'Participant left':'Ending session');try{if(callRef)await update(callRef,{status:'ENDED',endReason:reason,endedAt:serverTimestamp(),endedBy:Number(user.id)});if(callRef){await remove(ref(realtimeDb,`incomingCalls/${user.id}/${callId}`));await remove(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`))}}catch{}if(sessionId&&completesLesson)await completeSession(reason);const usedSeconds=sessionMeta?.started_at?Math.max(0,Math.floor((Date.now()-new Date(sessionMeta.started_at).getTime())/1000)):elapsed;setSessionSummary(completesLesson?{reason,duration:usedSeconds}:null);cleanup();cleanupChat();stopMedia();window.setTimeout(()=>navigate(sessionId?'/sessions':'/messages',{replace:true}),completesLesson&&sessionId?2500:300)},[callRef,callId,cleanup,cleanupChat,completeSession,navigate,sessionId,stopMedia,targetId,user.id,sessionMeta,elapsed]);
-finishRef.current=finish;
-useEffect(()=>{if(!sessionId)return;let active=true;const loadSession=async()=>{try{const r=await api.get(`/sessions/${sessionId}`);if(active)setSessionMeta(r.data.session)}catch{if(active)setError('Could not load the session timer.')}};loadSession();const poll=setInterval(loadSession,5000);return()=>{active=false;clearInterval(poll)}},[sessionId]);
+import { useAuth } from '../context/AuthContext';
+import api from '../api';
+import './Call.css';
 
-useEffect(()=>{if(!sessionId||!sessionMeta||sessionMeta.status==='COMPLETED'||sessionMeta.status==='CANCELLED')return;const start=new Date(sessionMeta.scheduled_at).getTime();const now=Date.now();if(now>=start){api.put(`/sessions/${sessionId}/start`).then(()=>api.get(`/sessions/${sessionId}`)).then(r=>setSessionMeta(r.data.session)).catch(e=>{if(e?.response?.status!==400&&e?.response?.status!==409)setError(e?.response?.data?.message||'This lesson cannot be started yet.')});}},[sessionId,sessionMeta?.scheduled_at,sessionMeta?.status]);
+const randomId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const chatId = (a, b) => [Number(a), Number(b)].sort((x, y) => x - y).join('_');
+const initials = (name = 'Student') => name.split(/\s+/).filter(Boolean).map((x) => x[0]).join('').slice(0, 2).toUpperCase() || 'S';
+const JITSI_DOMAIN = (import.meta.env.VITE_JITSI_DOMAIN || 'meet.jit.si').replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-useEffect(()=>{if(!sessionMeta?.started_at||!sessionMeta?.duration_minutes)return;const tick=()=>{const start=new Date(sessionMeta.started_at).getTime();const end=start+Number(sessionMeta.duration_minutes)*60000;const now=Date.now();const remaining=Math.max(0,end-now);setSessionRemaining(Math.ceil(remaining/1000));setElapsed(Math.max(0,Math.floor((now-start)/1000)));if(remaining<=0&&!endedRef.current)finish(false,'TIME_EXPIRED')};tick();const timer=setInterval(tick,1000);return()=>clearInterval(timer)},[sessionMeta,finish]);
+async function ensureFirebase() {
+  if (!firebaseConfigured || !firebaseAuth || !realtimeDb) throw new Error('Realtime calling is not configured. Add Firebase variables and enable Anonymous Authentication.');
+  if (!firebaseAuth.currentUser) await signInAnonymously(firebaseAuth);
+}
 
-useEffect(()=>{if(sessionMeta?.status==='COMPLETED'&&!endedRef.current)finish(true,sessionMeta.end_reason||'TIME_EXPIRED')},[sessionMeta,finish]);
-
-const buildPeer=useCallback(async()=>{
-  await ensureFirebase();
-  if(!callRef||!targetId)throw new Error('The other participant is missing.');
-
-  // One WebRTC object owns the entire call. We never reuse a closed peer and
-  // never call createOffer/createAnswer from Firebase value changes directly.
-  const runId=++callGenerationRef.current;
-  const alive=()=>runId===callGenerationRef.current&&!endedRef.current;
-  const current=pc=>alive()&&pcRef.current===pc&&pc.signalingState!=='closed'&&pc.connectionState!=='closed';
-  const iceServers=[
-    {urls:'stun:stun.l.google.com:19302'},
-    {urls:'stun:stun1.l.google.com:19302'},
-    {urls:'stun:stun2.l.google.com:19302'},
-    ...(import.meta.env.VITE_TURN_URL&&import.meta.env.VITE_TURN_USERNAME&&import.meta.env.VITE_TURN_CREDENTIAL
-      ? [{urls:import.meta.env.VITE_TURN_URL,username:import.meta.env.VITE_TURN_USERNAME,credential:import.meta.env.VITE_TURN_CREDENTIAL}]
-      : [])
-  ];
-  const pc=new RTCPeerConnection({iceServers,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
-  pcRef.current=pc;
-  remoteStreamRef.current=new MediaStream();
-  candidateQueueRef.current=[];
-  remoteReadyRef.current=false;
-  let makingOffer=false;
-  let ignoreOffer=false;
-  let disposed=false;
-  const polite=incoming;
-
-  const closeCurrent=()=>{
-    if(pcRef.current!==pc)return;
-    disposed=true;
-    try{pc.ontrack=null;pc.onicecandidate=null;pc.onnegotiationneeded=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;pc.close()}catch{}
-    pcRef.current=null;
-  };
-  const safe=()=>current(pc);
-
-  const sendSignal=async(payload)=>{
-    if(!safe())return;
-    await push(ref(realtimeDb,`calls/${callId}/signals`),{
-      from:Number(user.id),
-      ...payload,
-      createdAt:serverTimestamp()
-    });
-  };
-
-  const attachRemote=event=>{
-    if(!safe())return;
-    const remote=remoteStreamRef.current||new MediaStream();
-    remoteStreamRef.current=remote;
-    if(!remote.getTracks().some(t=>t.id===event.track.id))remote.addTrack(event.track);
-    if(remoteVideoRef.current)remoteVideoRef.current.srcObject=remote;
-    if(remoteAudioRef.current)remoteAudioRef.current.srcObject=remote;
-    setRemoteReady(true);
-    remoteAudioRef.current?.play().catch(()=>{});
-    remoteVideoRef.current?.play().catch(()=>{});
-  };
-  pc.ontrack=attachRemote;
-
-  pc.onicecandidate=event=>{
-    if(!event.candidate||!safe())return;
-    sendSignal({kind:'candidate',candidate:event.candidate.toJSON()}).catch(()=>{});
-  };
-
-  pc.onconnectionstatechange=()=>{
-    if(!safe())return;
-    const state=pc.connectionState;
-    if(state==='connected'){
-      connectedRef.current=true;
-      startedAtRef.current=startedAtRef.current||Date.now();
-      setStatus('Connected');
-    }else if(state==='connecting')setStatus('Connecting');
-    else if(state==='disconnected')setStatus('Reconnecting…');
-    else if(state==='failed'){
-      setStatus('Connection failed');
-      setError(import.meta.env.VITE_TURN_URL
-        ? 'The media connection failed. Check the TURN server URL, username and credential.'
-        : 'The two devices could not find a direct media path. Add a TURN server for reliable phone-to-laptop calls.');
-    }
-  };
-  pc.oniceconnectionstatechange=()=>{
-    if(!safe())return;
-    if(pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed')setStatus('Connected');
-    if(pc.iceConnectionState==='failed')setError(import.meta.env.VITE_TURN_URL
-      ? 'ICE failed. Verify your TURN server.'
-      : 'ICE failed. A TURN server is needed for some phone-to-laptop networks.');
-  };
-
-  // This call has one initial negotiation. Tracks are added before the offer,
-  // so the SDP always contains the exact audio/video media we intend to use.
-  // We deliberately do not renegotiate when mute/camera is toggled: those
-  // controls only enable/disable an existing sender track.
-
-  const handleDescription=async(description)=>{
-    if(!safe()||!description)return;
-    try{
-      const offerCollision=description.type==='offer' && (makingOffer || pc.signalingState!=='stable');
-      ignoreOffer=!polite && offerCollision;
-      if(ignoreOffer)return;
-
-      // setRemoteDescription() performs the required rollback for a polite
-      // peer when an offer collides with its own pending offer.
-      await pc.setRemoteDescription(new RTCSessionDescription(description));
-      if(!safe())return;
-      remoteReadyRef.current=true;
-      const pending=candidateQueueRef.current.splice(0);
-      for(const c of pending){
-        if(!safe())return;
-        try{await pc.addIceCandidate(new RTCIceCandidate(c));}catch(e){if(!ignoreOffer&&e?.name!=='InvalidStateError')throw e;}
-      }
-      if(description.type==='offer'){
-        await pc.setLocalDescription();
-        if(!safe()||!pc.localDescription)return;
-        await sendSignal({kind:'description',description:{type:pc.localDescription.type,sdp:pc.localDescription.sdp}});
-      }
-    }catch(error){
-      if(safe()&&error?.name!=='InvalidStateError'&&!endedRef.current)setError(`Could not complete call negotiation: ${error?.message||error?.name||'unknown error'}`);
-    }
-  };
-
-  const handleCandidate=async candidate=>{
-    if(!candidate||!safe()||ignoreOffer)return;
-    if(!remoteReadyRef.current){candidateQueueRef.current.push(candidate);return;}
-    try{await pc.addIceCandidate(new RTCIceCandidate(candidate));}
-    catch(error){if(error?.name!=='InvalidStateError'&&safe())console.warn('ICE candidate rejected',error);}
-  };
-
-  const signalUnsub=onChildAdded(ref(realtimeDb,`calls/${callId}/signals`),async snap=>{
-    const msg=snap.val();
-    if(!msg||Number(msg.from)===Number(user.id)||!safe())return;
-    if(msg.kind==='description')await handleDescription(msg.description);
-    else if(msg.kind==='candidate')await handleCandidate(msg.candidate);
+function loadJitsiApi() {
+  if (window.JitsiMeetExternalAPI) return Promise.resolve(window.JitsiMeetExternalAPI);
+  const existing = document.querySelector('script[data-skillswap-jitsi]');
+  if (existing) return new Promise((resolve, reject) => {
+    const timer = window.setInterval(() => {
+      if (window.JitsiMeetExternalAPI) { window.clearInterval(timer); resolve(window.JitsiMeetExternalAPI); }
+    }, 50);
+    window.setTimeout(() => { window.clearInterval(timer); reject(new Error('The video meeting service did not load.')); }, 15000);
   });
-  cleanupRef.current.push(signalUnsub);
-
-  const mediaConstraints=initialMode==='video'
-    ? {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:{width:{ideal:1280,max:1920},height:{ideal:720,max:1080},facingMode:'user'}}
-    : {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false};
-  let media;
-  try{
-    media=await navigator.mediaDevices.getUserMedia(mediaConstraints);
-  }catch(error){
-    if(error?.name==='AbortError'&&alive()){
-      await new Promise(r=>setTimeout(r,400));
-      if(!alive())return;
-      media=await navigator.mediaDevices.getUserMedia(mediaConstraints);
-    }else throw error;
-  }
-  if(!safe()){media?.getTracks().forEach(t=>t.stop());return;}
-  streamRef.current=media;
-  if(localVideoRef.current)localVideoRef.current.srcObject=media;
-
-  // Add tracks exactly once, before negotiation. This is the standard WebRTC
-  // ordering: media first, negotiation second.
-  for(const track of media.getTracks()){
-    if(!safe()){media.getTracks().forEach(t=>t.stop());return;}
-    pc.addTrack(track,media);
-  }
-
-  const callMeta=incoming
-    ? {calleeId:Number(user.id),type:initialMode==='video'?'video':'voice',status:'ACTIVE'}
-    : {callerId:Number(user.id),calleeId:targetId,callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:serverTimestamp()};
-  await update(callRef,callMeta);
-  if(!alive())return;
-
-  if(!incoming){
-    await set(ref(realtimeDb,`incomingCalls/${targetId}/${callId}`),{
-      callerId:Number(user.id),callerName:user.name,type:initialMode==='video'?'video':'voice',status:'RINGING',createdAt:Date.now()
-    });
-  }
-
-  await onDisconnect(callRef).update({status:'ENDED',endReason:'DISCONNECTED',endedAt:serverTimestamp(),endedBy:Number(user.id)});
-
-  // Caller creates exactly one initial offer. The receiver never creates an
-  // offer on its own, which keeps this Firebase signaling flow deterministic.
-  if(!incoming&&safe()){
-    try{
-      const offer=await pc.createOffer();
-      if(!safe())return;
-      await pc.setLocalDescription(offer);
-      if(!safe()||!pc.localDescription)return;
-      await sendSignal({kind:'description',description:{type:'offer',sdp:pc.localDescription.sdp}});
-    }catch(error){
-      if(safe()&&!endedRef.current)setError(`Could not start the call negotiation: ${error?.message||error?.name||'unknown error'}`);
-    }
-  }
-},[callId,callRef,incoming,initialMode,targetId,user.id,user.name]);
-
-useEffect(()=>{
-  let disposed=false;
-  buildPeer().catch(error=>{
-    if(!disposed&&!endedRef.current){
-      const msg=error?.name==='NotAllowedError'?'Microphone/camera permission was denied. Allow access and try again.':error?.name==='AbortError'?'The browser aborted microphone/camera access. Close other apps using the device camera or microphone and try again.':error?.message||'Could not start the call.';
-      setError(msg);setStatus('Unavailable');
-    }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://${JITSI_DOMAIN}/external_api.js`;
+    script.async = true;
+    script.dataset.skillswapJitsi = 'true';
+    script.onload = () => window.JitsiMeetExternalAPI ? resolve(window.JitsiMeetExternalAPI) : reject(new Error('The video meeting API is unavailable.'));
+    script.onerror = () => reject(new Error(`Could not load the media server at ${JITSI_DOMAIN}. Check VITE_JITSI_DOMAIN.`));
+    document.head.appendChild(script);
   });
-  return()=>{
-    disposed=true;
-    callGenerationRef.current+=1;
-    cleanup();
-    stopMedia();
-  };
-},[buildPeer,cleanup,stopMedia]);
+}
 
-useEffect(()=>{
-  let disposed=false;
-  (async()=>{
-    try{
-      await buildPeer();
-      if(disposed){callGenerationRef.current+=1;cleanup();stopMedia();}
-    }catch(error){
-      if(!disposed&&!endedRef.current){setError(error?.message||'Could not start the call.');setStatus('Unavailable');}
+export default function Call() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [params] = useSearchParams();
+  const incoming = params.get('incoming') === '1';
+  const callId = params.get('callId') || useMemo(randomId, []);
+  const targetId = Number(params.get('userId'));
+  const targetName = params.get('name') || 'SkillSwap student';
+  const sessionId = params.get('sessionId');
+  const mode = location.pathname.includes('video-call') ? 'video' : 'audio';
+  const callRef = useMemo(() => realtimeDb ? ref(realtimeDb, `calls/${callId}`) : null, [callId]);
+  const roomName = useMemo(() => `SkillSwap-${callId.replace(/[^a-zA-Z0-9_-]/g, '')}`, [callId]);
+
+  const jitsiContainerRef = useRef(null);
+  const jitsiRef = useRef(null);
+  const mountedRef = useRef(true);
+  const endedRef = useRef(false);
+  const completingRef = useRef(false);
+  const startedAtRef = useRef(0);
+  const finishRef = useRef(null);
+  const [status, setStatus] = useState(incoming ? 'Joining' : 'Calling');
+  const [error, setError] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [messages, setMessages] = useState([]);
+  const [message, setMessage] = useState('');
+  const [chatReady, setChatReady] = useState(false);
+  const [sessionMeta, setSessionMeta] = useState(null);
+  const [sessionRemaining, setSessionRemaining] = useState(null);
+  const [sessionSummary, setSessionSummary] = useState(null);
+  const [participantCount, setParticipantCount] = useState(incoming ? 1 : 0);
+
+  const cleanupJitsi = useCallback(() => {
+    const apiInstance = jitsiRef.current;
+    jitsiRef.current = null;
+    if (apiInstance) {
+      try { apiInstance.dispose(); } catch { /* already closed */ }
     }
-  })();
-  return()=>{
-    disposed=true;
-    callGenerationRef.current+=1;
-    cleanup();
-    stopMedia();
-  };
-},[buildPeer,cleanup,stopMedia]);
+  }, []);
 
-useEffect(()=>{
-  if(sessionId)return;
-  const timer=setInterval(()=>{
-    if(connectedRef.current&&startedAtRef.current)setElapsed(Math.floor((Date.now()-startedAtRef.current)/1000));
-  },1000);
-  return()=>clearInterval(timer);
-},[sessionId]);
+  const completeSession = useCallback(async (reason = 'COMPLETED') => {
+    if (!sessionId || completingRef.current) return;
+    completingRef.current = true;
+    try { await api.put(`/sessions/${sessionId}/complete`, { reason }); } catch { /* server may already have completed it */ }
+  }, [sessionId]);
 
-useEffect(()=>{
-  if(!chatOpen||!targetId)return;
-  let off=false;
-  ensureFirebase().then(()=>{
-    if(off)return;
-    setChatReady(true);
-    const unsub=onValue(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),s=>{
-      const v=s.val()||{};
-      setMessages(Object.entries(v).map(([id,x])=>({id,...x})).sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)));
-    });
-    chatCleanupRef.current.push(unsub);
-  }).catch(error=>{if(!off)setError(error.message)});
-  return()=>{off=true;setChatReady(false);cleanupChat()};
-},[chatOpen,targetId,user.id,cleanupChat]);
+  const finish = useCallback(async (remote = false, reason = 'USER_ENDED') => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+    const completesLesson = reason === 'USER_ENDED' || reason === 'TIME_EXPIRED';
+    setStatus(reason === 'TIME_EXPIRED' ? 'Time is up' : remote ? 'Participant left' : 'Ending session');
 
-const toggleMute=()=>{const t=streamRef.current?.getAudioTracks()[0];if(!t)return;t.enabled=!t.enabled;setMuted(!t.enabled)};
-const toggleSpeaker=async()=>{
-  const audio=remoteAudioRef.current;if(!audio)return;
-  try{
-    if(typeof audio.setSinkId!=='function'){setError('This browser does not expose speaker/output selection. Use the phone or computer audio-output control.');return;}
-    if(!speakerOn){
-      let sinkId='default';
-      if(typeof navigator.mediaDevices?.selectAudioOutput==='function'){
-        try{const device=await navigator.mediaDevices.selectAudioOutput();if(device?.deviceId)sinkId=device.deviceId}catch(e){if(e?.name==='NotAllowedError')return;throw e}
+    const apiInstance = jitsiRef.current;
+    if (apiInstance) {
+      try { apiInstance.executeCommand('hangup'); } catch { /* dispose below */ }
+    }
+
+    try {
+      if (callRef) await update(callRef, {
+        status: 'ENDED',
+        endReason: reason,
+        endedAt: serverTimestamp(),
+        endedBy: Number(user.id),
+      });
+      if (realtimeDb) {
+        await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
+        if (targetId) await remove(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`));
       }
-      await audio.setSinkId(sinkId);setSpeakerOn(true);
-    }else{await audio.setSinkId('default');setSpeakerOn(false)}
-    await audio.play().catch(()=>{});
-  }catch(e){setError(e?.message||'Could not change the call audio output.');}
-};
-const switchMode=async()=>{
-  // Voice and video are separate negotiated call types. Do not mutate an audio-only
-  // SDP session into video without a full renegotiation; that was causing one-way
-  // media and closed-peer errors on phone/laptop calls.
-  if(mode==='audio'){
-    setError('This is an audio-only call. End this call and start a Video Call for two-way audio + video.');
-    return;
-  }
-  const pc=pcRef.current;
-  if(switching||!pc||endedRef.current||pc.signalingState==='closed'||pc.connectionState==='closed')return;
-  setSwitching(true);
-  try{
-    const sender=pc.getSenders().find(s=>s.track?.kind==='video');
-    if(!sender){setError('The video channel is not available. Start a new Video Call.');return;}
-    const oldTrack=sender.track;
-    if(pcRef.current!==pc||pc.signalingState==='closed')return;
-    await sender.replaceTrack(null);
-    oldTrack?.stop();
-    const audio=streamRef.current?.getAudioTracks()[0];
-    streamRef.current=audio?new MediaStream([audio]):new MediaStream();
-    if(localVideoRef.current)localVideoRef.current.srcObject=streamRef.current;
-    setMode('audio');setCameraOff(true);
-  }catch(e){
-    if(e?.name==='InvalidStateError')setError('The call connection closed. Please start the call again.');
-    else setError(e?.message||'Could not switch to audio.');
-  }finally{setSwitching(false)}
-};
-const toggleCamera=()=>{const t=streamRef.current?.getVideoTracks()[0];if(!t)return;t.enabled=!t.enabled;setCameraOff(!t.enabled)};
-const uploadAttachment=async file=>{if(!firebaseStorage)throw new Error('File sharing is not configured. Enable Firebase Storage.');if(file.size>20*1024*1024)throw new Error('Files must be 20 MB or smaller.');const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path=storageRef(firebaseStorage,`chat-files/${chatId(user.id,targetId)}/${Date.now()}-${safe}`);await uploadBytes(path,file,{contentType:file.type||'application/octet-stream'});return {url:await getDownloadURL(path),name:file.name,size:file.size,type:file.type||'application/octet-stream'};};
-const sendAttachment=async e=>{const file=e.target.files?.[0];e.target.value='';if(!file||!targetId)return;try{setError('');await ensureFirebase();const fileInfo=await uploadAttachment(file);await push(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),{senderId:Number(user.id),senderName:user.name,attachment:fileInfo,createdAt:Date.now()});}catch(e){setError(e.message||'Could not send the file.')}};
-const sendMessage=async e=>{e.preventDefault();if(!message.trim()||!targetId)return;try{await ensureFirebase();await push(ref(realtimeDb,`chats/${chatId(user.id,targetId)}/messages`),{senderId:Number(user.id),senderName:user.name,text:message.trim(),createdAt:Date.now()});setMessage('')}catch(e){setError(e.message||'Could not send message.')}};
-const time=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`;const remainingSeconds=sessionRemaining??null;const remainingText=remainingSeconds===null?'—':`${String(Math.floor(remainingSeconds/60)).padStart(2,'0')}:${String(remainingSeconds%60).padStart(2,'0')}`;const durationLabel=sessionMeta?.duration_minutes?`${sessionMeta.duration_minutes} min`:'';
-return <>{sessionSummary&&<div className="session-summary-overlay"><div className="session-summary-card"><div className="session-summary-check"><Check size={28}/></div><span className="call-overline">SESSION FINISHED</span><h2>{sessionSummary.reason==='TIME_EXPIRED'?'Time is up':'Session ended'}</h2><p>Your SkillSwap session has been marked completed for both participants.</p><div className="session-summary-stats"><div><strong>{String(Math.floor(sessionSummary.duration/60)).padStart(2,'0')}:{String(sessionSummary.duration%60).padStart(2,'0')}</strong><span>time spent</span></div><div><strong>{durationLabel||'Session'}</strong><span>scheduled duration</span></div></div><div className="session-summary-note">You can now rate your partner and confirm your learning progress.</div></div></div>}<main className={`call-room-v2 ${mode} ${chatOpen?'chat-open':''} ${fullscreen?'is-fullscreen':''}`}><header className="call-top"><div className="call-identity"><button className="call-icon-btn" onClick={()=>finish(false,'LEFT_CALL_SCREEN')}><ArrowLeft size={18}/></button><div className="call-avatar">{initials(targetName)}</div><div><div className="call-overline">LIVE SKILLSWAP SESSION</div><h1>{targetName}</h1><div className="call-status"><i className={status==='Connected'?'live':''}/>{status}{status==='Connected'&&<span>· {time}</span>}</div>{sessionMeta&&<div className={`session-countdown ${remainingSeconds!==null&&remainingSeconds<=60?'urgent':''}`}><span>TIME LEFT</span><strong>{remainingText}</strong></div>}</div></div><div className="call-top-actions"><div className="secure-label"><ShieldCheck size={14}/> Secure session</div><button className={`call-icon-btn ${chatOpen?'active':''}`} onClick={()=>setChatOpen(v=>!v)}><MessageCircle size={18}/></button><button className="call-icon-btn"><MoreHorizontal size={18}/></button></div></header>{error&&<div className="call-error-v2"><span>{error}</span><button onClick={()=>setError('')}><X size={15}/></button></div>}<div className="call-body"><section className="call-stage-v2">{mode==='video'?<><video ref={remoteVideoRef} className="remote-video-v2" autoPlay playsInline/><div className="video-placeholder" style={{opacity:remoteReady?0:1,pointerEvents:remoteReady?'none':'auto'}}><div className="pulse-avatar">{initials(targetName)}</div><h2>{status==='Calling'?`Calling ${targetName}`:status}</h2><p>{status==='Calling'?'Waiting for your peer to join the session…':'Video will appear when the connection is ready.'}</p></div><video ref={localVideoRef} className={`local-video-v2 ${cameraOff?'is-off':''}`} autoPlay playsInline muted/><div className="local-label">You</div><button className="expand-btn" onClick={()=>setFullscreen(v=>!v)}><Maximize2 size={16}/></button></>:<div className="audio-stage"><div className="audio-rings"><div className="audio-avatar">{initials(targetName)}</div></div><div className="audio-name">{targetName}</div><div className="audio-state">{status}{status==='Connected'&&` · ${time}`}</div><div className="audio-bars"><i/><i/><i/><i/><i/></div><audio ref={remoteAudioRef} autoPlay playsInline /></div>}</section>{chatOpen&&<aside className="call-chat-v2"><div className="call-chat-top"><div><span>SESSION CHAT</span><strong>{targetName}</strong></div><button onClick={()=>setChatOpen(false)}><X size={17}/></button></div><div className="call-chat-list">{messages.length?messages.map(m=><div className={`call-msg ${Number(m.senderId)===Number(user.id)?'mine':''}`} key={m.id}>{m.text&&<span>{m.text}</span>}{m.attachment&&<a className="chat-file" href={m.attachment.url} target="_blank" rel="noreferrer">{m.attachment.type?.startsWith('image/')?<img src={m.attachment.url} alt={m.attachment.name}/>:<>📎</>}<strong>{m.attachment.name}</strong><small>{Math.max(1,Math.round((m.attachment.size||0)/1024))} KB</small></a>}<small>{m.createdAt?new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''}</small></div>):<div className="chat-empty"><MessageCircle size={25}/><strong>Keep learning while you talk</strong><span>Send links, questions and quick notes without leaving the session.</span></div>}</div><form onSubmit={sendMessage} className="call-composer"><label className="chat-attach" title="Send photo or document">📎<input type="file" onChange={sendAttachment} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden/></label><input value={message} onChange={e=>setMessage(e.target.value)} disabled={!chatReady} placeholder={chatReady?'Write a message…':'Connecting…'}/><button disabled={!message.trim()||!chatReady}><Send size={16}/></button></form></aside>}</div><footer className="call-bottom"><div className="call-controls-left"><button className={muted?'selected':''} onClick={toggleMute}><span className="control-icon">{muted?<MicOff/>:<Mic/>}</span><span>{muted?'Unmute':'Mute'}</span></button><button className={cameraOff?'selected':''} onClick={mode==='video'?toggleCamera:switchMode} disabled={switching}><span className="control-icon">{mode==='video'?(cameraOff?<CameraOff/>:<Camera/>):<Video/>}</span><span>{mode==='video'?(cameraOff?'Camera on':'Camera'):switching?'Switching…':'Start video'}</span></button><button className={chatOpen?'selected':''} onClick={()=>setChatOpen(v=>!v)}><span className="control-icon"><MessageCircle/></span><span>Chat</span></button><button onClick={switchMode} disabled={switching}><span className="control-icon">{mode==='video'?<Phone/>:<Video/>}</span><span>{mode==='video'?'Audio only':'Video'}</span></button><button className={speakerOn?'selected':''} onClick={toggleSpeaker}><span className="control-icon"><Volume2/></span><span>{speakerOn?'Speaker on':'Speaker'}</span></button></div><div className="session-time-chip"><span>{durationLabel||'Live session'}</span><strong>{remainingText}</strong></div><button className="end-session-btn" onClick={()=>finish(false,'USER_ENDED')}><PhoneOff size={18}/><span>End for both</span></button><div className="connection-chip"><Check size={13}/><span>{status==='Connected'?'Connection stable':'Waiting for participant'}</span></div></footer></main></>;
+    } catch { /* cleanup/navigation still proceeds */ }
+
+    if (sessionId && completesLesson) await completeSession(reason);
+    const usedSeconds = sessionMeta?.started_at
+      ? Math.max(0, Math.floor((Date.now() - new Date(sessionMeta.started_at).getTime()) / 1000))
+      : elapsed;
+    setSessionSummary(completesLesson ? { reason, duration: usedSeconds } : null);
+    cleanupJitsi();
+    window.setTimeout(() => navigate(sessionId ? '/sessions' : '/messages', { replace: true }), completesLesson && sessionId ? 2200 : 250);
+  }, [callRef, callId, cleanupJitsi, completeSession, elapsed, navigate, sessionId, targetId, user.id, sessionMeta]);
+
+  finishRef.current = finish;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) return undefined;
+    let active = true;
+    const loadSession = async () => {
+      try {
+        const r = await api.get(`/sessions/${sessionId}`);
+        if (active) setSessionMeta(r.data.session);
+      } catch {
+        if (active) setError('Could not load the session timer.');
+      }
+    };
+    loadSession();
+    const poll = setInterval(loadSession, 5000);
+    return () => { active = false; clearInterval(poll); };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !sessionMeta || sessionMeta.status === 'COMPLETED' || sessionMeta.status === 'CANCELLED') return;
+    const start = new Date(sessionMeta.scheduled_at).getTime();
+    if (Date.now() >= start) {
+      api.put(`/sessions/${sessionId}/start`)
+        .then(() => api.get(`/sessions/${sessionId}`))
+        .then((r) => setSessionMeta(r.data.session))
+        .catch((e) => {
+          if (e?.response?.status !== 400 && e?.response?.status !== 409) setError(e?.response?.data?.message || 'This lesson cannot be started yet.');
+        });
+    }
+  }, [sessionId, sessionMeta?.scheduled_at, sessionMeta?.status]);
+
+  useEffect(() => {
+    if (!sessionMeta?.started_at || !sessionMeta?.duration_minutes) return undefined;
+    const tick = () => {
+      const start = new Date(sessionMeta.started_at).getTime();
+      const end = start + Number(sessionMeta.duration_minutes) * 60000;
+      const remaining = Math.max(0, end - Date.now());
+      setSessionRemaining(Math.ceil(remaining / 1000));
+      setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+      if (remaining <= 0 && !endedRef.current) finishRef.current?.(false, 'TIME_EXPIRED');
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [sessionMeta, finish]);
+
+  useEffect(() => {
+    if (sessionMeta?.status === 'COMPLETED' && !endedRef.current) finishRef.current?.(true, sessionMeta.end_reason || 'TIME_EXPIRED');
+  }, [sessionMeta, finish]);
+
+  // Firebase is now only the lightweight call invitation/lifecycle channel.
+  // Audio/video media, NAT traversal, reconnection and conferencing are handled by Jitsi's media infrastructure.
+  useEffect(() => {
+    let cancelled = false;
+    const startCall = async () => {
+      try {
+        await ensureFirebase();
+        if (!callRef || !targetId || !user?.id) throw new Error('The other participant is missing.');
+
+        if (incoming) {
+          const existing = await get(callRef);
+          const existingCall = existing.val();
+          if (existingCall?.status === 'ENDED') throw new Error('This call has already ended. Start a new call from Messages.');
+        }
+
+        const callMeta = incoming
+          ? { calleeId: Number(user.id), calleeName: user.name, type: mode, status: 'JOINING', joinedAt: serverTimestamp() }
+          : { callerId: Number(user.id), calleeId: targetId, callerName: user.name, type: mode, status: 'RINGING', createdAt: serverTimestamp() };
+        await update(callRef, callMeta);
+        if (cancelled) return;
+
+        if (!incoming) {
+          await set(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`), {
+            callerId: Number(user.id),
+            callerName: user.name,
+            type: mode,
+            status: 'RINGING',
+            createdAt: Date.now(),
+          });
+        } else {
+          await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
+        }
+
+        const JitsiMeetExternalAPI = await loadJitsiApi();
+        if (cancelled || !mountedRef.current || !jitsiContainerRef.current) return;
+
+        const apiInstance = new JitsiMeetExternalAPI(JITSI_DOMAIN, {
+          roomName,
+          parentNode: jitsiContainerRef.current,
+          width: '100%',
+          height: '100%',
+          userInfo: { displayName: user.name || 'SkillSwap user' },
+          configOverwrite: {
+            prejoinConfig: { enabled: false },
+            startWithAudioMuted: false,
+            startWithVideoMuted: mode !== 'video',
+            disableAP: false,
+            disableAEC: false,
+            disableAGC: false,
+            disableNS: false,
+            enableNoisyMicDetection: true,
+            enableLayerSuspension: true,
+            // Use the Jitsi bridge/SFU path instead of direct browser-to-browser media.
+            p2p: { enabled: false },
+            hideConferenceSubject: true,
+          },
+          interfaceConfigOverwrite: {
+            MOBILE_APP_PROMO: false,
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,
+            HIDE_INVITE_MORE_HEADER: true,
+            DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+            TILE_VIEW_MAX_COLUMNS: 2,
+            TOOLBAR_BUTTONS: ['microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'chat', 'settings', 'raisehand', 'videoquality'],
+          },
+        });
+        jitsiRef.current = apiInstance;
+
+        apiInstance.addListener('videoConferenceJoined', async () => {
+          if (!mountedRef.current || endedRef.current) return;
+          setParticipantCount((count) => Math.max(1, count));
+          setStatus('Waiting for participant');
+          try { await update(callRef, { status: 'JOINED_MEDIA', mediaJoinedAt: serverTimestamp() }); } catch { /* non-fatal */ }
+        });
+        apiInstance.addListener('participantJoined', () => {
+          if (!mountedRef.current || endedRef.current) return;
+          startedAtRef.current ||= Date.now();
+          setParticipantCount((count) => count + 1);
+          setStatus('Connected');
+          update(callRef, { status: 'ACTIVE', connectedAt: serverTimestamp() }).catch(() => {});
+        });
+        apiInstance.addListener('participantLeft', () => {
+          setParticipantCount((count) => Math.max(1, count - 1));
+          setStatus('Reconnecting…');
+        });
+        apiInstance.addListener('videoConferenceLeft', () => {
+          if (!endedRef.current) finishRef.current?.(false, 'LEFT_CALL_SCREEN');
+        });
+        apiInstance.addListener('readyToClose', () => {
+          if (!endedRef.current) finishRef.current?.(false, 'USER_ENDED');
+        });
+        apiInstance.addListener('cameraError', (event) => {
+          if (!mountedRef.current || endedRef.current || mode !== 'video') return;
+          setError(event?.message || 'Camera access failed. Check browser camera permission.');
+        });
+        apiInstance.addListener('micError', (event) => {
+          if (!mountedRef.current || endedRef.current) return;
+          setError(event?.message || 'Microphone access failed. Check browser microphone permission.');
+        });
+        apiInstance.addListener('errorOccurred', (event) => {
+          if (!mountedRef.current || endedRef.current) return;
+          const message = event?.message || 'The meeting service reported an error.';
+          setError(message);
+          if (event?.isFatal) setStatus('Connection failed');
+        });
+      } catch (e) {
+        if (!cancelled && mountedRef.current && !endedRef.current) {
+          setStatus('Unavailable');
+          setError(e?.message || 'Could not start the meeting.');
+          try {
+            if (callRef) await update(callRef, {
+              status: 'ENDED',
+              endReason: 'MEDIA_SERVER_UNAVAILABLE',
+              endedAt: serverTimestamp(),
+              endedBy: Number(user.id),
+            });
+            if (realtimeDb) {
+              await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
+              if (targetId) await remove(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`));
+            }
+          } catch { /* cleanup is best effort */ }
+        }
+      }
+    };
+    startCall();
+    return () => {
+      cancelled = true;
+      cleanupJitsi();
+    };
+  }, [callId, callRef, cleanupJitsi, incoming, mode, roomName, targetId, user?.id, user?.name]);
+
+  // If the other side ends the call, close the embedded conference too.
+  useEffect(() => {
+    if (!callRef) return undefined;
+    const unsubscribe = onValue(callRef, (snap) => {
+      const data = snap.val();
+      if (!data || data.status !== 'ENDED' || endedRef.current) return;
+      if (Number(data.endedBy) !== Number(user.id)) finishRef.current?.(true, data.endReason || 'PARTICIPANT_ENDED');
+    });
+    return unsubscribe;
+  }, [callRef, user.id]);
+
+  useEffect(() => {
+    if (sessionId) return undefined;
+    const timer = setInterval(() => {
+      if (startedAtRef.current && !endedRef.current) setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!chatOpen || !targetId) return undefined;
+    let active = true;
+    let unsubscribe = () => {};
+    ensureFirebase().then(() => {
+      if (!active) return;
+      setChatReady(true);
+      unsubscribe = onValue(ref(realtimeDb, `chats/${chatId(user.id, targetId)}/messages`), (snap) => {
+        const values = snap.val() || {};
+        setMessages(Object.entries(values).map(([id, x]) => ({ id, ...x })).sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0)));
+      });
+    }).catch((e) => { if (active) setError(e.message || 'Could not open session chat.'); });
+    return () => { active = false; setChatReady(false); unsubscribe(); };
+  }, [chatOpen, targetId, user.id]);
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!message.trim() || !targetId) return;
+    try {
+      await ensureFirebase();
+      await push(ref(realtimeDb, `chats/${chatId(user.id, targetId)}/messages`), {
+        senderId: Number(user.id), senderName: user.name, text: message.trim(), createdAt: Date.now(),
+      });
+      setMessage('');
+    } catch (e2) { setError(e2.message || 'Could not send message.'); }
+  };
+
+  const sendAttachment = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !targetId) return;
+    try {
+      await ensureFirebase();
+      if (!firebaseStorage) throw new Error('File sharing is not configured. Enable Firebase Storage.');
+      if (file.size > 20 * 1024 * 1024) throw new Error('Files must be 20 MB or smaller.');
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = storageRef(firebaseStorage, `chat-files/${chatId(user.id, targetId)}/${Date.now()}-${safe}`);
+      await uploadBytes(path, file, { contentType: file.type || 'application/octet-stream' });
+      const attachment = { url: await getDownloadURL(path), name: file.name, size: file.size, type: file.type || 'application/octet-stream' };
+      await push(ref(realtimeDb, `chats/${chatId(user.id, targetId)}/messages`), {
+        senderId: Number(user.id), senderName: user.name, attachment, createdAt: Date.now(),
+      });
+    } catch (e2) { setError(e2.message || 'Could not send the file.'); }
+  };
+
+  const elapsedText = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+  const remainingText = sessionRemaining === null ? '—' : `${String(Math.floor(sessionRemaining / 60)).padStart(2, '0')}:${String(sessionRemaining % 60).padStart(2, '0')}`;
+  const durationLabel = sessionMeta?.duration_minutes ? `${sessionMeta.duration_minutes} min` : '';
+
+  return <>
+    {sessionSummary && <div className="session-summary-overlay"><div className="session-summary-card"><div className="session-summary-check"><Check size={28} /></div><span className="call-overline">SESSION FINISHED</span><h2>{sessionSummary.reason === 'TIME_EXPIRED' ? 'Time is up' : 'Session ended'}</h2><p>Your SkillSwap session has been marked completed for both participants.</p><div className="session-summary-stats"><div><strong>{String(Math.floor(sessionSummary.duration / 60)).padStart(2, '0')}:{String(sessionSummary.duration % 60).padStart(2, '0')}</strong><span>time spent</span></div><div><strong>{durationLabel || 'Session'}</strong><span>scheduled duration</span></div></div><div className="session-summary-note">You can now rate your partner and confirm your learning progress.</div></div></div>}
+
+    <main className={`call-room-v3 ${chatOpen ? 'chat-open' : ''} ${fullscreen ? 'is-fullscreen' : ''}`}>
+      <header className="call-top-v3">
+        <div className="call-identity-v3">
+          <button className="call-icon-btn" onClick={() => finish(false, 'LEFT_CALL_SCREEN')}><ArrowLeft size={18} /></button>
+          <div className="call-avatar">{initials(targetName)}</div>
+          <div><div className="call-overline">LIVE SKILLSWAP {mode === 'video' ? 'VIDEO' : 'VOICE'} SESSION</div><h1>{targetName}</h1><div className="call-status"><i className={status === 'Connected' ? 'live' : ''} />{status}{status === 'Connected' && <span> · {elapsedText}</span>}</div>{sessionMeta && <div className={`session-countdown ${sessionRemaining !== null && sessionRemaining <= 60 ? 'urgent' : ''}`}><span>TIME LEFT</span><strong>{remainingText}</strong></div>}</div>
+        </div>
+        <div className="call-top-actions"><div className="secure-label"><ShieldCheck size={14} /> Media server protected</div><span className="participant-chip">{participantCount} participant{participantCount === 1 ? '' : 's'}</span><button className={`call-icon-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}><MessageCircle size={18} /></button><button className="call-icon-btn" onClick={() => setFullscreen((v) => !v)}><Maximize2 size={18} /></button></div>
+      </header>
+
+      {error && <div className="call-error-v3"><span>{error}</span><button onClick={() => setError('')}><X size={15} /></button></div>}
+
+      <div className="call-body-v3">
+        <section className="call-stage-v3">
+          <div ref={jitsiContainerRef} className="jitsi-frame" aria-label="SkillSwap meeting" />
+          {status !== 'Connected' && <div className="meeting-loading"><div className="meeting-spinner" /><strong>{status === 'Calling' ? `Calling ${targetName}` : status === 'Waiting for participant' ? `Waiting for ${targetName}` : status === 'Unavailable' ? 'Meeting service unavailable' : 'Joining secure meeting…'}</strong><span>{status === 'Unavailable' ? 'Check VITE_JITSI_DOMAIN and network access' : JITSI_DOMAIN}</span></div>}
+          <div className="meeting-brand"><span>SKILLSWAP</span><small>{roomName}</small></div>
+        </section>
+
+        {chatOpen && <aside className="call-chat-v3"><div className="call-chat-top"><div><span>SESSION CHAT</span><strong>{targetName}</strong></div><button onClick={() => setChatOpen(false)}><X size={17} /></button></div><div className="call-chat-list">{messages.length ? messages.map((m) => <div className={`call-msg ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}>{m.text && <span>{m.text}</span>}{m.attachment && <a className="chat-file" href={m.attachment.url} target="_blank" rel="noreferrer">{m.attachment.type?.startsWith('image/') ? <img src={m.attachment.url} alt={m.attachment.name} /> : <>📎</>}<strong>{m.attachment.name}</strong><small>{Math.max(1, Math.round((m.attachment.size || 0) / 1024))} KB</small></a>}<small>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small></div>) : <div className="chat-empty"><MessageCircle size={25} /><strong>Keep learning while you talk</strong><span>Send links, questions and quick notes without leaving the session.</span></div>}</div><form onSubmit={sendMessage} className="call-composer"><label className="chat-attach" title="Send photo or document">📎<input type="file" onChange={sendAttachment} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden /></label><input value={message} onChange={(e) => setMessage(e.target.value)} disabled={!chatReady} placeholder={chatReady ? 'Write a message…' : 'Connecting…'} /><button disabled={!message.trim() || !chatReady}><Send size={16} /></button></form></aside>}
+      </div>
+
+      <footer className="call-bottom-v3"><div className="media-note"><Phone size={15} /><span>{mode === 'video' ? 'Two-way video + audio' : 'Two-way voice'} · Jitsi media</span></div><button className="call-chat-button" onClick={() => setChatOpen((v) => !v)}><MessageCircle size={18} /><span>Chat</span></button><button className="end-session-btn" onClick={() => finish(false, 'USER_ENDED')}><PhoneOff size={18} /><span>{sessionId ? 'End session' : 'End call'}</span></button></footer>
+    </main>
+  </>;
 }
