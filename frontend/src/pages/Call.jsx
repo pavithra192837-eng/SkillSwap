@@ -31,6 +31,56 @@ function safePlay(element) {
   if (result?.catch) result.catch(() => {});
 }
 
+// Session timestamps come from the API as UTC ISO strings (or Date values).
+// Never let a mobile browser guess the timezone of a MySQL DATETIME string.
+function parseServerTime(value) {
+  if (!value) return NaN;
+  if (value instanceof Date) return value.getTime();
+  const raw = String(value).trim();
+  if (!raw) return NaN;
+
+  // ISO timestamps with Z/offset are safe to parse directly.
+  if (/Z$|[+-]\d{2}:?\d{2}$/.test(raw)) {
+    const time = Date.parse(raw);
+    return Number.isFinite(time) ? time : NaN;
+  }
+
+  // Defensive fallback for a UTC MySQL DATETIME returned without timezone.
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/);
+  if (!match) return NaN;
+  const [, y, mo, d, h, mi, sec = '0'] = match;
+  return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(sec));
+}
+
+function getMediaErrorMessage(error, mode) {
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Microphone access requires HTTPS on a phone. Open SkillSwap using the HTTPS link, not an HTTP link.';
+  }
+  if (!navigator?.mediaDevices?.getUserMedia) {
+    return 'This browser cannot access the microphone. Use the latest Chrome, Edge, Safari, or Firefox and allow microphone access.';
+  }
+
+  switch (error?.name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+      return 'Microphone permission is blocked. On your phone, open browser/site settings, allow Microphone' +
+        (mode === 'video' ? ' and Camera' : '') +
+        ', then reload this page and join again.';
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return 'No microphone' + (mode === 'video' ? ' or camera' : '') + ' was found. Check that the device is available and try again.';
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return 'The microphone is already being used by another app or browser tab. Close it and try again.';
+    case 'SecurityError':
+      return 'The browser blocked microphone access for security reasons. Use the HTTPS SkillSwap link and allow microphone access.';
+    case 'AbortError':
+      return 'Microphone access was interrupted. Please try joining the session again.';
+    default:
+      return error?.message || 'Could not access the microphone. Check browser permissions and try again.';
+  }
+}
+
 export default function Call() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -179,21 +229,38 @@ export default function Call() {
   }, [sessionId, sessionMeta?.scheduled_at, sessionMeta?.status]);
 
   useEffect(() => {
-    if (!sessionMeta?.scheduled_at || !sessionMeta?.duration_minutes) return undefined;
+    if (!sessionMeta?.scheduled_at) return undefined;
+
+    // Prefer the server-calculated ends_at. This prevents a phone/browser
+    // timezone interpretation from shortening or extending the lesson.
+    const start = parseServerTime(sessionMeta.scheduled_at);
+    const explicitEnd = parseServerTime(sessionMeta.ends_at);
+    const end = Number.isFinite(explicitEnd)
+      ? explicitEnd
+      : (Number.isFinite(start) && Number(sessionMeta.duration_minutes)
+        ? start + Number(sessionMeta.duration_minutes) * 60000
+        : NaN);
+
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      setError('The session time received from the server is invalid. Please refresh and try again.');
+      return undefined;
+    }
+
     const tick = () => {
-      // The lesson window is fixed: scheduled start + duration. It does not
-      // move when the first participant joins late.
-      const start = new Date(sessionMeta.scheduled_at).getTime();
-      const end = start + Number(sessionMeta.duration_minutes) * 60000;
       const remaining = Math.max(0, end - Date.now());
       setSessionRemaining(Math.ceil(remaining / 1000));
       setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
-      if (remaining <= 0 && !endedRef.current) finishRef.current?.(false, 'TIME_EXPIRED');
+
+      // Only the actual server-defined end time can complete the lesson.
+      if (remaining <= 0 && !endedRef.current && sessionMeta.status !== 'COMPLETED') {
+        finishRef.current?.(false, 'TIME_EXPIRED');
+      }
     };
+
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [sessionMeta]);
+  }, [sessionMeta?.scheduled_at, sessionMeta?.ends_at, sessionMeta?.duration_minutes]);
 
   const startNativeCall = useCallback(async () => {
     await ensureFirebase();
@@ -239,6 +306,17 @@ export default function Call() {
       const existing = await get(callRef);
       const existingCall = existing.val();
       if (!existingCall || existingCall.status === 'ENDED') throw new Error('This call has already ended. Start a new call from Messages.');
+    }
+
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      const error = new Error('Microphone access requires HTTPS on a phone.');
+      error.name = 'SecurityError';
+      throw error;
+    }
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      const error = new Error('This browser does not support microphone access.');
+      error.name = 'NotSupportedError';
+      throw error;
     }
 
     const media = await navigator.mediaDevices.getUserMedia({
@@ -381,7 +459,7 @@ export default function Call() {
     startNativeCall().catch((e) => {
       if (cancelled || endedRef.current || !mountedRef.current) return;
       setStatus('Unavailable');
-      setError(e?.name === 'NotAllowedError' ? 'Microphone/camera permission was denied. Allow permission and try again.' : e?.message || 'Could not start the call.');
+      setError(getMediaErrorMessage(e, mode));
     });
     return () => {
       cancelled = true;

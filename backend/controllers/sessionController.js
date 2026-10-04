@@ -560,15 +560,46 @@ const startSession = async (
 
     const session = sessions[0];
 
-    const startAt = new Date(session.scheduled_at).getTime();
-    const endAt = startAt + Number(session.duration_minutes || 60) * 60 * 1000;
-    const now = Date.now();
-    if (now < startAt) {
-      return res.status(409).json({ success:false, message:`This lesson starts at ${new Date(session.scheduled_at).toLocaleString()}. You can join when the scheduled time begins.` });
+    // scheduled_at is a UTC DATETIME. Compare it with UTC_TIMESTAMP() in
+    // MySQL instead of parsing a timezone-less DATETIME in Node. This avoids
+    // server-timezone differences (especially on mobile/cloud deployments).
+    const [windowRows] = await pool.query(
+      `
+      SELECT
+        scheduled_at,
+        duration_minutes,
+        scheduled_at > UTC_TIMESTAMP() AS not_started,
+        DATE_ADD(scheduled_at, INTERVAL duration_minutes MINUTE) <= UTC_TIMESTAMP() AS expired
+      FROM sessions
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [sessionId]
+    );
+    const window = windowRows[0];
+
+    if (Number(window?.not_started) === 1) {
+      return res.status(409).json({
+        success: false,
+        message: `This lesson starts at ${new Date(session.scheduled_at).toLocaleString()}. You can join when the scheduled time begins.`,
+      });
     }
-    if (now >= endAt) {
-      await pool.query(`UPDATE sessions SET status='COMPLETED', ended_at=COALESCE(ended_at,UTC_TIMESTAMP()), end_reason=COALESCE(end_reason,'TIME_EXPIRED') WHERE id=? AND status='SCHEDULED'`, [sessionId]);
-      return res.status(409).json({ success:false, message:'This lesson window has ended. Use Sessions to schedule another lesson.' });
+
+    if (Number(window?.expired) === 1) {
+      await pool.query(
+        `
+        UPDATE sessions
+        SET status='COMPLETED',
+            ended_at=COALESCE(ended_at,UTC_TIMESTAMP()),
+            end_reason=COALESCE(end_reason,'TIME_EXPIRED')
+        WHERE id=? AND status='SCHEDULED'
+        `,
+        [sessionId]
+      );
+      return res.status(409).json({
+        success: false,
+        message: 'This lesson window has ended. Use Sessions to schedule another lesson.',
+      });
     }
 
     if (session.status === "ONGOING") {
