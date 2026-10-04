@@ -20,6 +20,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const ratingRoutes = require("./routes/ratingRoutes");
 const learningRoutes = require("./routes/learningRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 // =========================
 // APP
@@ -138,6 +139,13 @@ app.use(
   "/api/connections",
   connectionRoutes
 );
+
+// Free local/backend chat attachments. Firebase Storage is not required.
+app.use("/api/uploads", uploadRoutes);
+app.use("/uploads", express.static(require("path").join(__dirname, "uploads"), {
+  maxAge: '1h',
+  index: false,
+}));
 
 // =========================
 // 404 HANDLER

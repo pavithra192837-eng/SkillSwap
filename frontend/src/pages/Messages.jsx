@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onDisconnect, onValue, push, ref, serverTimestamp, set } from 'firebase/database';
-import { getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { MessageCircle, Phone, Video, Search, Send, UsersRound, Wifi, Circle, Paperclip, Image as ImageIcon, FileText, Smile, LoaderCircle, CheckCircle2 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { firebaseAuth, realtimeDb, firebaseConfigured, firebaseStorage } from '../firebase';
+import { firebaseAuth, realtimeDb, firebaseConfigured } from '../firebase';
 import api, { getErrorMessage } from '../api';
 import { useAuth } from '../context/AuthContext';
 import './Messages.css';
@@ -52,7 +51,6 @@ export default function Messages() {
   const [dragActive, setDragActive] = useState(false);
   const [justSent, setJustSent] = useState(false);
   const messagesEndRef = useRef(null);
-  const uploadTasksRef = useRef(new Map());
   const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -130,74 +128,54 @@ export default function Messages() {
 
   const sendAttachment = async file => {
     if (!file || !selected) return;
-    if (!firebaseStorage) {
-      setError('File sharing is not configured. Check the Firebase Storage environment variable.');
-      return;
-    }
     if (file.size > MAX_FILE_SIZE) {
       setError('Files must be 20 MB or smaller.');
       return;
     }
 
     const conversationId = chatId(user.id, selected.user_id);
-    const recipient = { id: Number(selected.user_id), name: selected.name };
     const jobId = `${conversationId}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const controller = new AbortController();
 
     try {
       setError('');
-      await ensureFirebase();
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const fileRef = storageRef(firebaseStorage, `chat-files/${conversationId}/${Date.now()}-${safe}`);
-      const task = uploadBytesResumable(fileRef, file, {
-        contentType: file.type || 'application/octet-stream',
-        cacheControl: 'public,max-age=3600',
-      });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('recipientId', String(selected.user_id));
+      formData.append('conversationId', conversationId);
 
-      uploadTasksRef.current.set(jobId, task);
       setUploadJobs(current => ({
         ...current,
-        [conversationId]: { id: jobId, name: file.name, progress: 0, recipient },
+        [conversationId]: { id: jobId, name: file.name, progress: 5 },
       }));
 
-      await new Promise((resolve, reject) => {
-        let settled = false;
-        const finish = (fn, value) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          fn(value);
-        };
-        const timeout = setTimeout(() => {
-          try { task.cancel(); } catch {}
-          finish(reject, new Error('Upload timed out. Please try again or use a smaller file.'));
-        }, 120000);
-
-        task.on('state_changed',
-          snapshot => {
-            const progress = Math.min(100, Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
-            setUploadJobs(current => current[conversationId]?.id === jobId
-              ? { ...current, [conversationId]: { ...current[conversationId], progress } }
-              : current);
-          },
-          error => finish(reject, error),
-          () => finish(resolve)
-        );
+      // The backend stores the file itself, so Firebase Storage/billing is not involved.
+      const response = await api.post('/uploads/chat', formData, {
+        signal: controller.signal,
+        onUploadProgress: event => {
+          if (!event.total) return;
+          const progress = Math.min(99, Math.round((event.loaded / event.total) * 100));
+          setUploadJobs(current => current[conversationId]?.id === jobId
+            ? { ...current, [conversationId]: { ...current[conversationId], progress } }
+            : current);
+        },
       });
 
-      const url = await getDownloadURL(fileRef);
+      const attachment = response.data.attachment;
+      await ensureFirebase();
       const messageRef = push(ref(realtimeDb, `chats/${conversationId}/messages`));
       await set(messageRef, {
         senderId: Number(user.id),
         senderName: user.name,
-        attachment: { url, name: file.name, size: file.size, type: file.type || 'application/octet-stream' },
+        attachment,
         createdAt: Date.now(),
       });
       setJustSent(true);
       setTimeout(() => setJustSent(false), 1200);
     } catch (e) {
-      setError(explainFirebaseError(e, 'Could not send the attachment. Nothing was added to the chat.'));
+      if (e?.code === 'ERR_CANCELED') return;
+      setError(getErrorMessage(e, 'Could not send the attachment. Nothing was added to the chat.'));
     } finally {
-      uploadTasksRef.current.delete(jobId);
       setUploadJobs(current => {
         if (current[conversationId]?.id !== jobId) return current;
         const next = { ...current };
@@ -240,10 +218,6 @@ export default function Messages() {
   };
 
   const call = type => navigate(`/${type === 'video' ? 'video' : 'voice'}-call?userId=${selected.user_id}&name=${encodeURIComponent(selected.name)}`);
-  useEffect(() => () => {
-    uploadTasksRef.current.forEach(task => { try { task.cancel(); } catch {} });
-    uploadTasksRef.current.clear();
-  }, []);
 
   const handleComposerKeyDown = e => {
     if (e.key === 'Enter' && !e.shiftKey) {

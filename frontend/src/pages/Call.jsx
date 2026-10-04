@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, CameraOff, Check, Maximize2, MessageCircle, Mic, MicOff, PhoneOff, Send, ShieldCheck, Volume2, X } from 'lucide-react';
 import { get, onChildAdded, onValue, push, ref, remove, serverTimestamp, set, update } from 'firebase/database';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
-import { firebaseAuth, realtimeDb, firebaseConfigured, firebaseStorage } from '../firebase';
+import { firebaseAuth, realtimeDb, firebaseConfigured } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import './Call.css';
@@ -391,16 +390,18 @@ export default function Call() {
   const sendAttachment = async (e) => {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file || !targetId) return;
+    if (file.size > 20 * 1024 * 1024) { setError('Files must be 20 MB or smaller.'); return; }
     try {
+      const conversationId = chatId(user.id, targetId);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('recipientId', String(targetId));
+      formData.append('conversationId', conversationId);
+      const response = await api.post('/uploads/chat', formData);
+      const attachment = response.data.attachment;
       await ensureFirebase();
-      if (!firebaseStorage) throw new Error('File sharing is not configured. Enable Firebase Storage.');
-      if (file.size > 20 * 1024 * 1024) throw new Error('Files must be 20 MB or smaller.');
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = storageRef(firebaseStorage, `chat-files/${chatId(user.id, targetId)}/${Date.now()}-${safe}`);
-      await uploadBytes(path, file, { contentType: file.type || 'application/octet-stream' });
-      const attachment = { url: await getDownloadURL(path), name: file.name, size: file.size, type: file.type || 'application/octet-stream' };
-      await push(ref(realtimeDb, `chats/${chatId(user.id, targetId)}/messages`), { senderId: Number(user.id), senderName: user.name, attachment, createdAt: Date.now() });
-    } catch (e2) { setError(e2.message || 'Could not send the file.'); }
+      await push(ref(realtimeDb, `chats/${conversationId}/messages`), { senderId: Number(user.id), senderName: user.name, attachment, createdAt: Date.now() });
+    } catch (e2) { setError(e2?.response?.data?.message || e2.message || 'Could not send the file.'); }
   };
 
   const toggleMute = () => {
