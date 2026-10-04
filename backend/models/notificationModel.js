@@ -153,6 +153,17 @@ const deleteNotification = async (
 };
 
 // ========================================
+// DELETE ALL USER NOTIFICATIONS
+// ========================================
+const deleteAllNotifications = async (userId) => {
+  const [result] = await pool.query(
+    `DELETE FROM notifications WHERE user_id = ?`,
+    [userId]
+  );
+  return result.affectedRows;
+};
+
+// ========================================
 // EXPORT
 // ========================================
 module.exports = {
@@ -162,5 +173,6 @@ module.exports = {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  deleteAllNotifications,
 };
 

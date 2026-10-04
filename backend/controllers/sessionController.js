@@ -1,5 +1,6 @@
 
 const { pool } = require("../config/db");
+const { parseSessionDate, toMysqlUtc, validateFutureSessionTime } = require("../utils/sessionTime");
 
 // ========================================
 // CREATE SESSION
@@ -14,6 +15,7 @@ const createSession = async (req, res) => {
       scheduled_at,
       duration_minutes = 60,
       meeting_id,
+      lesson_type = 'LEARNING',
     } = req.body;
 
     // ------------------------------------
@@ -21,6 +23,8 @@ const createSession = async (req, res) => {
     // ------------------------------------
     const duration = Number(duration_minutes);
     const allowedDurations = [30, 45, 60, 90];
+    const normalizedLessonType = String(lesson_type || '').toUpperCase();
+    if (!['LEARNING','TEACHING'].includes(normalizedLessonType)) return res.status(400).json({ success:false, message:'Choose whether this lesson is for learning or teaching.' });
     if (!request_id || !scheduled_at) {
       return res.status(400).json({
         success: false,
@@ -28,6 +32,16 @@ const createSession = async (req, res) => {
           "Request ID and scheduled time are required",
       });
     }
+
+    // Never store a browser's timezone-less datetime-local value directly.
+    // The frontend sends an ISO timestamp with its timezone; we normalize it
+    // to UTC before writing the MySQL DATETIME field.
+    const scheduledValidation = validateFutureSessionTime(scheduled_at);
+    if (!scheduledValidation.date) {
+      return res.status(400).json({ success: false, message: scheduledValidation.message });
+    }
+    const scheduledAtUtc = toMysqlUtc(scheduledValidation.date);
+
     if (!allowedDurations.includes(duration)) {
       return res.status(400).json({
         success: false,
@@ -80,55 +94,42 @@ const createSession = async (req, res) => {
       });
     }
 
-    // ------------------------------------
-    // Check existing session
-    // ------------------------------------
-    const [existingSessions] =
-      await pool.query(
-        `
-        SELECT id
-        FROM sessions
-        WHERE request_id = ?
-        `,
-        [request_id]
-      );
-
-    if (existingSessions.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "A session already exists for this request",
-      });
-    }
+    // Learning and teaching are separate lesson slots. Learn 1 + Teach 1 = 2 lessons.
+    const [planRows] = await pool.query(`SELECT planned_learning_sessions, planned_teaching_sessions FROM exchange_requests WHERE id = ? LIMIT 1`, [request_id]);
+    const plannedLearning = Number(planRows[0]?.planned_learning_sessions || 0);
+    const plannedTeaching = Number(planRows[0]?.planned_teaching_sessions || 0);
+    const [requestRows] = await pool.query(`SELECT id FROM exchange_requests WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)) AND ((offered_skill_id=? AND requested_skill_id=?) OR (offered_skill_id=? AND requested_skill_id=?)) AND status='ACCEPTED'`, [request.sender_id, request.receiver_id, request.receiver_id, request.sender_id, request.offered_skill_id, request.requested_skill_id, request.requested_skill_id, request.offered_skill_id]);
+    const exchangeRequestIds = requestRows.map(r => Number(r.id));
+    const placeholders = exchangeRequestIds.map(() => '?').join(',');
+    const [countRows] = await pool.query(`SELECT lesson_type, COUNT(*) AS used_count FROM sessions WHERE request_id IN (${placeholders}) AND status IN ('SCHEDULED','ONGOING','COMPLETED') GROUP BY lesson_type`, exchangeRequestIds);
+    const usedLearning = Number(countRows.find(r => r.lesson_type === 'LEARNING')?.used_count || 0);
+    const usedTeaching = Number(countRows.find(r => r.lesson_type === 'TEACHING')?.used_count || 0);
+    const oldBoth = Number(countRows.find(r => r.lesson_type === 'BOTH')?.used_count || 0);
+    const limit = normalizedLessonType === 'LEARNING' ? plannedLearning : plannedTeaching;
+    const used = normalizedLessonType === 'LEARNING' ? usedLearning + oldBoth : usedTeaching + oldBoth;
+    if (limit > 0 && used >= limit) return res.status(409).json({ success:false, message:`All ${limit} planned ${normalizedLessonType.toLowerCase()} lessons are already scheduled or completed.` });
 
     // ------------------------------------
     // Create session
     // ------------------------------------
     const user1Id = request.sender_id;
     const user2Id = request.receiver_id;
+    const learnerId = normalizedLessonType === 'LEARNING' ? Number(userId) : (Number(request.sender_id) === Number(userId) ? Number(request.receiver_id) : Number(request.sender_id));
+    const teacherId = normalizedLessonType === 'LEARNING' ? (Number(request.sender_id) === Number(userId) ? Number(request.receiver_id) : Number(request.sender_id)) : Number(userId);
+    const skillId = normalizedLessonType === 'LEARNING' ? (Number(userId) === Number(request.sender_id) ? request.requested_skill_id : request.offered_skill_id) : (Number(userId) === Number(request.sender_id) ? request.offered_skill_id : request.requested_skill_id);
 
+    const [numberRows] = await pool.query(
+      `SELECT COALESCE(MAX(session_number), 0) + 1 AS next_number FROM sessions WHERE request_id = ?`,
+      [request_id]
+    );
+    const sessionNumber = Number(numberRows[0]?.next_number || 1);
     const [result] = await pool.query(
       `
       INSERT INTO sessions
-      (
-        request_id,
-        user1_id,
-        user2_id,
-        scheduled_at,
-        duration_minutes,
-        status,
-        meeting_id
-      )
-      VALUES (?, ?, ?, ?, ?, 'SCHEDULED', ?)
+      (request_id,user1_id,user2_id,scheduled_at,duration_minutes,session_number,schedule_note,status,meeting_id,lesson_type,learner_id,teacher_id,skill_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'SCHEDULED', ?, ?, ?, ?, ?)
       `,
-      [
-        request_id,
-        user1Id,
-        user2Id,
-        scheduled_at,
-        duration,
-        meeting_id || null,
-      ]
+      [request_id,user1Id,user2Id,scheduledAtUtc,duration,sessionNumber,req.body?.schedule_note || null,meeting_id || null,normalizedLessonType,learnerId,teacherId,skillId]
     );
 
     // Each exchange creates two learning directions:
@@ -190,13 +191,17 @@ const createSession = async (req, res) => {
         request_id: Number(request_id),
         user1_id: user1Id,
         user2_id: user2Id,
-        scheduled_at,
+        scheduled_at: scheduledValidation.date.toISOString(),
         duration_minutes: duration,
+        session_number: sessionNumber,
         started_at: null,
         ended_at: null,
         status: "SCHEDULED",
-        meeting_id:
-          meeting_id || null,
+        meeting_id: meeting_id || null,
+        lesson_type: normalizedLessonType,
+        learner_id: learnerId,
+        teacher_id: teacherId,
+        skill_id: skillId,
       },
     });
   } catch (error) {
@@ -229,7 +234,14 @@ const getSessions = async (req, res) => {
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        DATE_ADD(s.scheduled_at, INTERVAL s.duration_minutes MINUTE) AS ends_at,
         s.duration_minutes,
+        s.session_number,
+        s.lesson_type,
+        s.learner_id,
+        s.teacher_id,
+        s.rescheduled_from_id,
+        s.schedule_note,
         s.started_at,
         s.ended_at,
         s.ended_by,
@@ -243,6 +255,9 @@ const getSessions = async (req, res) => {
         CASE WHEN EXISTS (SELECT 1 FROM ratings WHERE session_id = s.id AND reviewer_id = ?) THEN 1 ELSE 0 END AS rated_by_me,
         offered_skill.name AS offered_skill_name,
         requested_skill.name AS requested_skill_name,
+        lesson_skill.name AS lesson_skill_name,
+        learner.name AS learner_name,
+        teacher.name AS teacher_name,
 
         user1.name AS user1_name,
         user1.roll_no AS user1_roll_no,
@@ -264,6 +279,9 @@ const getSessions = async (req, res) => {
         ON er.offered_skill_id = offered_skill.id
       INNER JOIN skills requested_skill
         ON er.requested_skill_id = requested_skill.id
+      LEFT JOIN skills lesson_skill ON lesson_skill.id = s.skill_id
+      LEFT JOIN users learner ON learner.id = s.learner_id
+      LEFT JOIN users teacher ON teacher.id = s.teacher_id
 
       WHERE
         s.user1_id = ?
@@ -313,6 +331,7 @@ const getSessionById = async (
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        DATE_ADD(s.scheduled_at, INTERVAL s.duration_minutes MINUTE) AS ends_at,
         s.duration_minutes,
         s.started_at,
         s.ended_at,
@@ -391,6 +410,7 @@ const updateSession = async (
       scheduled_at,
       duration_minutes,
       meeting_id,
+      lesson_type = 'LEARNING',
     } = req.body;
 
     // ------------------------------------
@@ -426,13 +446,16 @@ const updateSession = async (
     // ------------------------------------
     // Update scheduled time
     // ------------------------------------
-    if (
-      scheduled_at !== undefined
-    ) {
-      updates.push(
-        "scheduled_at = ?"
-      );
-      values.push(scheduled_at);
+    if (scheduled_at !== undefined) {
+      const parsed = parseSessionDate(scheduled_at);
+      if (!parsed) {
+        return res.status(400).json({ success: false, message: 'Invalid session date/time. Send an ISO date with a timezone.' });
+      }
+      if (parsed.getTime() < Date.now() + 30 * 1000) {
+        return res.status(400).json({ success: false, message: 'Choose a future date and time for the session.' });
+      }
+      updates.push("scheduled_at = ?");
+      values.push(toMysqlUtc(parsed));
     }
 
     // ------------------------------------
@@ -537,6 +560,48 @@ const startSession = async (
 
     const session = sessions[0];
 
+    // scheduled_at is a UTC DATETIME. Compare it with UTC_TIMESTAMP() in
+    // MySQL instead of parsing a timezone-less DATETIME in Node. This avoids
+    // server-timezone differences (especially on mobile/cloud deployments).
+    const [windowRows] = await pool.query(
+      `
+      SELECT
+        scheduled_at,
+        duration_minutes,
+        scheduled_at > UTC_TIMESTAMP() AS not_started,
+        DATE_ADD(scheduled_at, INTERVAL duration_minutes MINUTE) <= UTC_TIMESTAMP() AS expired
+      FROM sessions
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [sessionId]
+    );
+    const window = windowRows[0];
+
+    if (Number(window?.not_started) === 1) {
+      return res.status(409).json({
+        success: false,
+        message: `This lesson starts at ${new Date(session.scheduled_at).toLocaleString()}. You can join when the scheduled time begins.`,
+      });
+    }
+
+    if (Number(window?.expired) === 1) {
+      await pool.query(
+        `
+        UPDATE sessions
+        SET status='COMPLETED',
+            ended_at=COALESCE(ended_at,UTC_TIMESTAMP()),
+            end_reason=COALESCE(end_reason,'TIME_EXPIRED')
+        WHERE id=? AND status='SCHEDULED'
+        `,
+        [sessionId]
+      );
+      return res.status(409).json({
+        success: false,
+        message: 'This lesson window has ended. Use Sessions to schedule another lesson.',
+      });
+    }
+
     if (session.status === "ONGOING") {
       return res.status(400).json({
         success: false,
@@ -564,7 +629,7 @@ const startSession = async (
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'ONGOING', started_at = COALESCE(started_at, NOW()), ended_at = NULL, ended_by = NULL, end_reason = NULL
+      SET status = 'ONGOING', started_at = COALESCE(started_at, UTC_TIMESTAMP()), ended_at = NULL, ended_by = NULL, end_reason = NULL
       WHERE id = ?
       `,
       [sessionId]
@@ -647,7 +712,7 @@ const completeSession = async (
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'COMPLETED', ended_at = NOW(), ended_by = ?, end_reason = ?
+      SET status = 'COMPLETED', ended_at = UTC_TIMESTAMP(), ended_by = ?, end_reason = ?
       WHERE id = ?
       `,
       [userId, endReason, sessionId]
@@ -657,11 +722,53 @@ const completeSession = async (
     await pool.query(
       `
       UPDATE learning_progress
-      SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW())
+      SET status = 'COMPLETED', completed_at = COALESCE(completed_at, UTC_TIMESTAMP())
       WHERE session_id = ? AND status = 'IN_PROGRESS'
       `,
       [sessionId]
     );
+
+    // When every planned learning lesson for an exchange is completed,
+    // automatically promote each learner's exchanged skill into LEARN.
+    // This removes the manual 'add to profile' step while keeping the
+    // skill level editable later from Skill Setup.
+    const [learningPlans] = await pool.query(`
+      SELECT er.planned_learning_sessions,
+             lp.learner_id, lp.skill_id,
+             COUNT(DISTINCT CASE WHEN s.status='COMPLETED' THEN s.id END) AS completed_lessons
+      FROM exchange_requests er
+      JOIN sessions s ON s.request_id = er.id
+      JOIN learning_progress lp ON lp.session_id = s.id
+      WHERE er.id = ?
+      GROUP BY er.planned_learning_sessions, lp.learner_id, lp.skill_id
+    `, [session.request_id]);
+    for (const plan of learningPlans) {
+      if (Number(plan.completed_lessons) < Number(plan.planned_learning_sessions)) continue;
+      const [existingPurpose] = await pool.query(
+        `SELECT id, type FROM user_skills WHERE user_id=? AND skill_id=? LIMIT 1`,
+        [plan.learner_id, plan.skill_id]
+      );
+      if (!existingPurpose.length) {
+        await pool.query(`
+          INSERT INTO user_skills (user_id, skill_id, type, level)
+          VALUES (?, ?, 'LEARN', 'BEGINNER')
+        `, [plan.learner_id, plan.skill_id]);
+      } else if (existingPurpose[0].type === 'TEACH') {
+        // Preserve the single-purpose rule. The user can decide later whether
+        // to change the skill purpose in Skill Setup.
+        continue;
+      }
+      await pool.query(`
+        UPDATE learning_progress lp
+        JOIN sessions s ON s.id=lp.session_id
+        SET lp.status='ADDED_TO_PROFILE', lp.added_to_profile_at=COALESCE(lp.added_to_profile_at,NOW())
+        WHERE s.request_id=? AND lp.learner_id=? AND lp.skill_id=? AND s.status='COMPLETED'
+      `, [session.request_id, plan.learner_id, plan.skill_id]);
+      await pool.query(`
+        INSERT INTO notifications (user_id,type,title,message,reference_id,is_read)
+        VALUES (?, 'SKILL_LEARNED', ?, ?, ?, FALSE)
+      `, [plan.learner_id, 'Skill added to your profile', 'You completed all planned lessons for this exchange. Your learned skill is now on your profile.', plan.skill_id]);
+    }
 
     // ------------------------------------
     // Notify both participants
@@ -829,6 +936,69 @@ const deleteSession = async (
   }
 };
 
+
+// ========================================
+// GET ACTIVE EXCHANGE LESSON PLANS
+// GET /api/sessions/planning
+// ========================================
+const getPlanning = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`SELECT er.id AS request_id, er.sender_id, er.receiver_id, er.offered_skill_id, er.requested_skill_id, er.planned_learning_sessions, er.planned_teaching_sessions, CASE WHEN er.sender_id=? THEN receiver.id ELSE sender.id END AS partner_id, CASE WHEN er.sender_id=? THEN receiver.name ELSE sender.name END AS partner_name, offered_skill.name AS offered_skill_name, requested_skill.name AS requested_skill_name, CASE WHEN er.offered_skill_id < er.requested_skill_id THEN er.offered_skill_id ELSE er.requested_skill_id END AS skill_low, CASE WHEN er.offered_skill_id < er.requested_skill_id THEN er.requested_skill_id ELSE er.offered_skill_id END AS skill_high, s.id AS session_id, s.lesson_type, s.status AS session_status, s.scheduled_at, s.learner_id, s.teacher_id, lesson_skill.name AS lesson_skill_name FROM exchange_requests er JOIN users sender ON sender.id=er.sender_id JOIN users receiver ON receiver.id=er.receiver_id JOIN skills offered_skill ON offered_skill.id=er.offered_skill_id JOIN skills requested_skill ON requested_skill.id=er.requested_skill_id LEFT JOIN sessions s ON s.request_id=er.id AND s.status IN ('SCHEDULED','ONGOING','COMPLETED') LEFT JOIN skills lesson_skill ON lesson_skill.id=s.skill_id WHERE (er.sender_id=? OR er.receiver_id=?) AND er.status='ACCEPTED' ORDER BY er.updated_at DESC, er.id DESC, s.scheduled_at ASC`,[userId,userId,userId,userId]);
+    const groups=new Map();
+    for(const row of rows){
+      const key=`${row.partner_id}:${row.skill_low}:${row.skill_high}`; let x=groups.get(key);
+      if(!x){ x={...row,completed_learning:0,completed_teaching:0,scheduled_learning:0,scheduled_teaching:0,source_request_ids:[],next_learning_at:null,next_teaching_at:null,lesson_rows:[]}; groups.set(key,x); }
+      x.source_request_ids.push(Number(row.request_id));
+      if(row.session_id){ const type=String(row.lesson_type||'BOTH').toUpperCase();
+        if(row.session_status==='COMPLETED'){ if(type==='LEARNING'||type==='BOTH')x.completed_learning++; if(type==='TEACHING'||type==='BOTH')x.completed_teaching++; }
+        else if(row.session_status==='SCHEDULED'||row.session_status==='ONGOING'){ if(type==='LEARNING'||type==='BOTH')x.scheduled_learning++; if(type==='TEACHING'||type==='BOTH')x.scheduled_teaching++; if(row.session_status==='SCHEDULED'){ if((type==='LEARNING'||type==='BOTH')&&(!x.next_learning_at||new Date(row.scheduled_at)<new Date(x.next_learning_at)))x.next_learning_at=row.scheduled_at; if((type==='TEACHING'||type==='BOTH')&&(!x.next_teaching_at||new Date(row.scheduled_at)<new Date(x.next_teaching_at)))x.next_teaching_at=row.scheduled_at; } }
+        x.lesson_rows.push({id:Number(row.session_id),lesson_type:type,status:row.session_status,scheduled_at:row.scheduled_at,learner_id:row.learner_id,teacher_id:row.teacher_id,lesson_skill_name:row.lesson_skill_name});
+      }
+    }
+    const exchanges=[...groups.values()].map(x=>({request_id:x.request_id,partner_id:x.partner_id,partner_name:x.partner_name,offered_skill_name:x.offered_skill_name,requested_skill_name:x.requested_skill_name,planned_learning_sessions:Number(x.planned_learning_sessions||0),planned_teaching_sessions:Number(x.planned_teaching_sessions||0),completed_learning:x.completed_learning,completed_teaching:x.completed_teaching,scheduled_learning:x.scheduled_learning,scheduled_teaching:x.scheduled_teaching,learning_remaining:Math.max(Number(x.planned_learning_sessions||0)-x.completed_learning-x.scheduled_learning,0),teaching_remaining:Math.max(Number(x.planned_teaching_sessions||0)-x.completed_teaching-x.scheduled_teaching,0),completed_sessions:Math.max(x.completed_learning,x.completed_teaching),scheduled_sessions:Math.max(x.scheduled_learning,x.scheduled_teaching),next_learning_at:x.next_learning_at,next_teaching_at:x.next_teaching_at,lesson_rows:x.lesson_rows,source_request_ids:x.source_request_ids}));
+    return res.json({success:true,exchanges});
+  } catch(error){ console.error('Planning error:',error.message); return res.status(500).json({success:false,message:'Failed to load lesson plans'}); }
+};
+
+// ========================================
+// RESCHEDULE / ADD MAKE-UP LESSON
+// POST /api/sessions/:id/reschedule
+// ========================================
+const rescheduleSession = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sessionId = Number(req.params.id);
+    const { scheduled_at, duration_minutes = 60, schedule_note } = req.body || {};
+    const duration = Number(duration_minutes);
+    if (!scheduled_at) return res.status(400).json({success:false,message:'Choose a new date and time.'});
+    const scheduledValidation = validateFutureSessionTime(scheduled_at);
+    if (!scheduledValidation.date) return res.status(400).json({success:false,message:scheduledValidation.message});
+    const scheduledAtUtc = toMysqlUtc(scheduledValidation.date);
+    if (![30,45,60,90].includes(duration)) return res.status(400).json({success:false,message:'Duration must be 30, 45, 60, or 90 minutes.'});
+    const [rows] = await pool.query(`SELECT * FROM sessions WHERE id=? AND (user1_id=? OR user2_id=?) LIMIT 1`, [sessionId,userId,userId]);
+    if (!rows.length) return res.status(404).json({success:false,message:'Session not found.'});
+    const old = rows[0];
+    if (['COMPLETED','CANCELLED'].includes(old.status)) return res.status(400).json({success:false,message:'This lesson cannot be moved.'});
+    await pool.query(`UPDATE sessions SET status='CANCELLED',ended_at=UTC_TIMESTAMP(),ended_by=?,end_reason='RESCHEDULED' WHERE id=?`, [userId,sessionId]);
+    const [nextRows] = await pool.query(`SELECT COALESCE(MAX(session_number),0)+1 AS next_number FROM sessions WHERE request_id=?`, [old.request_id]);
+    const nextNumber = Number(nextRows[0]?.next_number || 1);
+    const [r] = await pool.query(`
+      INSERT INTO sessions
+      (request_id,user1_id,user2_id,scheduled_at,duration_minutes,session_number,rescheduled_from_id,schedule_note,status,meeting_id,lesson_type,learner_id,teacher_id,skill_id)
+      VALUES(?,?,?,?,?,?,?,?, 'SCHEDULED',?,?,?,?,?)
+    `, [old.request_id,old.user1_id,old.user2_id,scheduledAtUtc,duration,nextNumber,sessionId,schedule_note||null,old.meeting_id||null,old.lesson_type||'BOTH',old.learner_id||null,old.teacher_id||null,old.skill_id||null]);
+    await pool.query(`
+      INSERT INTO notifications(user_id,type,title,message,reference_id,is_read)
+      VALUES(?,?,?,?,?,FALSE),(?,?,?,?,?,FALSE)
+    `, [old.user1_id,'SESSION_RESCHEDULED','Lesson rescheduled','A lesson was moved. Open Sessions to see the new time.',r.insertId,old.user2_id,'SESSION_RESCHEDULED','Lesson rescheduled','A lesson was moved. Open Sessions to see the new time.',r.insertId]);
+    return res.status(201).json({success:true,message:'Lesson moved. The previous booking remains in history.',session_id:r.insertId});
+  } catch(error) {
+    console.error('Reschedule error:',error.message);
+    return res.status(500).json({success:false,message:'Failed to reschedule lesson'});
+  }
+};
+
 module.exports = {
   createSession,
   getSessions,
@@ -837,5 +1007,7 @@ module.exports = {
   startSession,
   completeSession,
   deleteSession,
+  getPlanning,
+  rescheduleSession,
 };
 

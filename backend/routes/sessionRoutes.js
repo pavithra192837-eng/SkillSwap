@@ -13,6 +13,8 @@ const {
   startSession,
   completeSession,
   deleteSession,
+  getPlanning,
+  rescheduleSession,
 } = require("../controllers/sessionController");
 
 // ========================================
@@ -39,6 +41,8 @@ router.get(
 // GET SESSION BY ID
 // GET /api/sessions/:id
 // ========================================
+router.get("/planning", authMiddleware, getPlanning);
+
 router.get(
   "/:id",
   authMiddleware,
@@ -84,5 +88,11 @@ router.delete(
   authMiddleware,
   deleteSession
 );
+
+// ========================================
+// RESCHEDULE SESSION
+// POST /api/sessions/:id/reschedule
+// ========================================
+router.post("/:id/reschedule", authMiddleware, rescheduleSession);
 
 module.exports = router;

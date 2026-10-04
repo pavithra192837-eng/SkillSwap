@@ -104,8 +104,7 @@ CREATE TABLE IF NOT EXISTS user_skills (
 
     UNIQUE (
         user_id,
-        skill_id,
-        type
+        skill_id
     )
 );
 
@@ -124,6 +123,9 @@ CREATE TABLE IF NOT EXISTS exchange_requests (
     requested_skill_id INT NOT NULL,
 
     message TEXT,
+
+    planned_learning_sessions INT NOT NULL DEFAULT 3,
+    planned_teaching_sessions INT NOT NULL DEFAULT 3,
 
     status ENUM(
         'PENDING',
@@ -172,6 +174,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     scheduled_at DATETIME NOT NULL,
 
     duration_minutes INT NOT NULL DEFAULT 60,
+    session_number INT NOT NULL DEFAULT 1,
+    lesson_type ENUM('LEARNING','TEACHING','BOTH') NOT NULL DEFAULT 'BOTH',
+    learner_id INT NULL,
+    teacher_id INT NULL,
+    skill_id INT NULL,
+    rescheduled_from_id INT NULL,
+    schedule_note VARCHAR(500) NULL,
     started_at DATETIME NULL,
     ended_at DATETIME NULL,
     ended_by INT NULL,
