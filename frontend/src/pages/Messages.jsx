@@ -137,9 +137,10 @@ export default function Messages() {
     try {
       setError('');
       const formData = new FormData();
-      formData.append('file', file);
+      // Put normal fields before the file so multipart parsers can read them reliably.
       formData.append('recipientId', String(selected.user_id));
       formData.append('conversationId', conversationId);
+      formData.append('file', file, file.name);
 
       setUploadJobs(current => ({
         ...current,

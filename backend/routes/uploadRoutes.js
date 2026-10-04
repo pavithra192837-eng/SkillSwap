@@ -8,7 +8,8 @@ const { pool } = require('../config/db');
 
 const router = express.Router();
 const uploadRoot = path.join(__dirname, '..', 'uploads', 'chat');
-fs.mkdirSync(uploadRoot, { recursive: true });
+const tempRoot = path.join(uploadRoot, '_tmp');
+fs.mkdirSync(tempRoot, { recursive: true });
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const allowedMimeTypes = new Set([
@@ -24,15 +25,12 @@ const allowedExtensions = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.zip',
 ]);
 
+// Always write first to a temporary directory. With multipart/form-data, the
+// file may be encountered before later form fields, so destination must NOT
+// depend on req.body being populated yet.
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const conversationId = String(req.body?.conversationId || '');
-    if (!/^\d+_\d+$/.test(conversationId)) return cb(new Error('Invalid conversation.'));
-    const directory = path.join(uploadRoot, conversationId);
-    fs.mkdirSync(directory, { recursive: true });
-    cb(null, directory);
-  },
-  filename: (req, file, cb) => {
+  destination: (_req, _file, cb) => cb(null, tempRoot),
+  filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     const base = path.basename(file.originalname || 'file', ext)
       .replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'file';
@@ -43,7 +41,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: MAX_FILE_SIZE, files: 1 },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     const mime = String(file.mimetype || '').toLowerCase();
     if (!allowedExtensions.has(ext) || !allowedMimeTypes.has(mime)) {
@@ -88,7 +86,13 @@ router.post('/chat', authMiddleware, (req, res) => {
         return res.status(403).json({ success: false, message: 'You can only share files with an accepted SkillSwap connection.' });
       }
 
-      const relativePath = path.relative(path.join(__dirname, '..'), savedPath).split(path.sep).join('/');
+      const directory = path.join(uploadRoot, conversationId);
+      fs.mkdirSync(directory, { recursive: true });
+      const finalPath = path.join(directory, path.basename(savedPath));
+      fs.renameSync(savedPath, finalPath);
+      savedPath = finalPath;
+
+      const relativePath = path.relative(path.join(__dirname, '..'), finalPath).split(path.sep).join('/');
       const url = `${req.protocol}://${req.get('host')}/${relativePath}`;
       const size = Number(req.file.size || 0);
       const mimeType = String(req.file.mimetype || 'application/octet-stream');
