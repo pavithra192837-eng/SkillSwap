@@ -36,6 +36,8 @@
 .chat-empty-icon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#102235;color:#6f91ba;margin-bottom:11px}
 .chat-empty strong{font-size:14px;color:#b8c7d7;font-weight:650}
 .chat-empty span{font-size:11px;line-height:1.55;margin-top:5px;color:#63788f}
+
+.chat-loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;color:#70869e;font-size:12px;pointer-events:none}.chat-loading .spin{color:#668fff}
 .chat-welcome{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#72879d;background:#07111d}
 .chat-welcome-icon{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:#10243a;color:#668fff;margin-bottom:16px}
 .chat-welcome h2{margin:0 0 7px;color:#dce8f4;font-size:21px}

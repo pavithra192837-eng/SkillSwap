@@ -37,6 +37,8 @@ export default function Messages() {
   const [connections, setConnections] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [messagesByChat, setMessagesByChat] = useState({});
+  const [loadedChatId, setLoadedChatId] = useState(null);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -71,9 +73,15 @@ export default function Messages() {
 
   useEffect(() => {
     const found = connections.find(c => String(c.user_id) === String(targetId));
-    if (found) setSelected(found);
-    else if (!selected && connections[0]) setSelected(connections[0]);
-  }, [connections, targetId, selected]);
+    if (found) {
+      setSelected(current => (String(current?.user_id) === String(found.user_id) ? current : found));
+      return;
+    }
+
+    if (!targetId && connections[0]) {
+      setSelected(current => current || connections[0]);
+    }
+  }, [connections, targetId]);
 
   useEffect(() => {
     let cleanupPresence = () => {};
@@ -89,9 +97,15 @@ export default function Messages() {
 
   useEffect(() => {
     if (!selected || !firebaseReady) return undefined;
-    setMessages([]);
-    shouldStickToBottom.current = true;
+
     const id = chatId(user.id, selected.user_id);
+    // Never clear the current conversation while Firebase is reconnecting or
+    // delivering its first snapshot. Restore a cached conversation immediately
+    // and keep the empty state hidden until this chat has actually loaded.
+    setMessages(messagesByChat[id] || []);
+    setLoadedChatId(null);
+    shouldStickToBottom.current = true;
+
     const messagesRef = ref(realtimeDb, `chats/${id}/messages`);
     const presenceRef = ref(realtimeDb, `presence/${selected.user_id}`);
     const unsubMessages = onValue(messagesRef, snap => {
@@ -99,8 +113,13 @@ export default function Messages() {
       const next = Object.entries(value)
         .map(([messageId, message]) => ({ id: messageId, ...message }))
         .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
+      setMessagesByChat(cache => ({ ...cache, [id]: next }));
       setMessages(next);
-    }, e => setError(explainFirebaseError(e, 'Could not read this conversation.')));
+      setLoadedChatId(id);
+    }, e => {
+      setLoadedChatId(id);
+      setError(explainFirebaseError(e, 'Could not read this conversation.'));
+    });
     const unsubPresence = onValue(presenceRef, snap => setOnline(Boolean(snap.val()?.online)));
     return () => { unsubMessages(); unsubPresence(); };
   }, [selected, user.id, firebaseReady]);
@@ -258,7 +277,9 @@ export default function Messages() {
           onDrop={handleDrop}
         >
           {dragActive && <div className="drop-overlay"><Paperclip size={28}/><strong>Drop a photo or file to send</strong><span>Up to 20 MB</span></div>}
-          {messages.length ? messages.map(m => <div className={`message-row ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}>
+          {!loadedChatId || loadedChatId !== chatId(user.id, selected.user_id) ? (
+            <div className="chat-loading" aria-live="polite"><LoaderCircle size={20} className="spin"/><span>Loading messages…</span></div>
+          ) : messages.length ? messages.map(m => <div className={`message-row ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}>
             <div className="message-bubble">
               {m.text && <span className="message-text">{m.text}</span>}
               {m.attachment && <a className={`message-file ${m.attachment.type?.startsWith('image/') ? 'image-attachment' : ''}`} href={m.attachment.url} target="_blank" rel="noreferrer">
