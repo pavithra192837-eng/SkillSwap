@@ -68,7 +68,8 @@ export default function Call() {
   const finishRef = useRef(null);
   const reconnectTimerRef = useRef(null);
 
-  const [status, setStatus] = useState(incoming ? 'Joining' : 'Calling');
+  const [status, setStatus] = useState(sessionId ? 'Waiting for participant' : (incoming ? 'Joining' : 'Calling'));
+  const [roomParticipants, setRoomParticipants] = useState(sessionId ? 1 : 0);
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(mode !== 'video');
@@ -133,6 +134,7 @@ export default function Call() {
 
     try {
       if (callRef) await update(callRef, { status: 'ENDED', endReason: reason, endedAt: serverTimestamp(), endedBy: Number(user.id) });
+      if (realtimeDb && sessionId) await remove(ref(realtimeDb, `calls/${callId}/participants/${Number(user.id)}`));
       if (realtimeDb) {
         await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
         if (targetId) await remove(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`));
@@ -198,6 +200,40 @@ export default function Call() {
     if (!callRef || !signalRef || !targetId || !user?.id) throw new Error('The other participant is missing.');
     const generation = ++generationRef.current;
     const alive = () => mountedRef.current && !endedRef.current && generationRef.current === generation;
+
+    // A scheduled lesson is a meeting room, not a person-to-person call.
+    // The first participant must enter a waiting room; we only start WebRTC
+    // after the second participant has entered the same session room.
+    if (sessionId) {
+      const participantsRef = ref(realtimeDb, `calls/${callId}/participants`);
+      const myParticipantRef = ref(realtimeDb, `calls/${callId}/participants/${Number(user.id)}`);
+      await set(myParticipantRef, {
+        userId: Number(user.id),
+        name: user.name || 'Student',
+        joinedAt: serverTimestamp(),
+      });
+      await update(callRef, {
+        sessionId,
+        type: mode,
+        status: 'WAITING',
+        roomReady: false,
+      });
+      setStatus('Waiting for participant');
+
+      // Do not notify/ring the other user. They enter the room themselves
+      // from the scheduled lesson card, just like a meeting link.
+      while (alive()) {
+        const snapshot = await get(participantsRef);
+        const participants = snapshot.val() || {};
+        const count = Object.keys(participants).length;
+        setRoomParticipants(count);
+        if (count >= 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 900));
+      }
+      if (!alive()) return;
+      setStatus('Connecting…');
+      await update(callRef, { roomReady: true });
+    }
 
     if (incoming) {
       const existing = await get(callRef);
@@ -324,14 +360,16 @@ export default function Call() {
     };
 
     const unsubscribeSignals = onChildAdded(signalRef, handleSignal);
-    const callMeta = incoming
-      ? { calleeId: Number(user.id), calleeName: user.name, type: mode, status: 'JOINING', joinedAt: serverTimestamp(), sessionId: sessionId || null }
-      : { callerId: Number(user.id), calleeId: targetId, callerName: user.name, type: mode, status: 'RINGING', createdAt: serverTimestamp(), sessionId: sessionId || null };
+    const callMeta = sessionId
+      ? { sessionId, type: mode, status: 'WAITING', roomReady: true }
+      : (incoming
+        ? { calleeId: Number(user.id), calleeName: user.name, type: mode, status: 'JOINING', joinedAt: serverTimestamp(), sessionId: null }
+        : { callerId: Number(user.id), calleeId: targetId, callerName: user.name, type: mode, status: 'RINGING', createdAt: serverTimestamp(), sessionId: null });
     await update(callRef, callMeta);
     if (!alive()) { unsubscribeSignals(); return; }
-    if (!incoming) {
-      await set(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`), { callerId: Number(user.id), callerName: user.name, type: mode, status: 'RINGING', createdAt: Date.now(), sessionId: sessionId || null });
-    } else {
+    if (!incoming && !sessionId) {
+      await set(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`), { callerId: Number(user.id), callerName: user.name, type: mode, status: 'RINGING', createdAt: Date.now(), sessionId: null });
+    } else if (incoming) {
       await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
     }
 
@@ -351,6 +389,9 @@ export default function Call() {
       try { cleanupRef.current?.(); } catch {}
       cleanupPeer();
       cleanupMedia();
+      if (sessionId && realtimeDb && user?.id) {
+        remove(ref(realtimeDb, `calls/${callId}/participants/${Number(user.id)}`)).catch(() => {});
+      }
     };
   }, [cleanupMedia, cleanupPeer, startNativeCall]);
 
@@ -358,7 +399,9 @@ export default function Call() {
     if (!callRef) return undefined;
     return onValue(callRef, (snap) => {
       const data = snap.val();
-      if (!data || data.status !== 'ENDED' || endedRef.current) return;
+      if (!data) return;
+      if (sessionId && data.participants) setRoomParticipants(Object.keys(data.participants).length);
+      if (data.status !== 'ENDED' || endedRef.current) return;
       if (Number(data.endedBy) !== Number(user.id)) finishRef.current?.(true, data.endReason || 'PARTICIPANT_ENDED');
     });
   }, [callRef, user.id]);
@@ -441,7 +484,7 @@ export default function Call() {
     {sessionSummary && <div className="session-summary-overlay"><div className="session-summary-card"><div className="session-summary-check"><Check size={28} /></div><span className="call-overline">SESSION FINISHED</span><h2>{sessionSummary.reason === 'TIME_EXPIRED' ? 'Time is up' : 'Session ended'}</h2><p>Your SkillSwap session has been marked completed for both participants.</p><div className="session-summary-stats"><div><strong>{String(Math.floor(sessionSummary.duration / 60)).padStart(2, '0')}:{String(sessionSummary.duration % 60).padStart(2, '0')}</strong><span>time spent</span></div><div><strong>{durationLabel || 'Session'}</strong><span>scheduled duration</span></div></div></div></div>}
     <main className={`call-room-v3 ${chatOpen ? 'chat-open' : ''} ${fullscreen ? 'is-fullscreen' : ''}`}>
       <header className="call-top-v3">
-        <div className="call-identity-v3"><button className="call-icon-btn" onClick={() => finish(false, 'LEFT_CALL_SCREEN')}><ArrowLeft size={18} /></button><div className="call-avatar">{initials(targetName)}</div><div><div className="call-overline">SKILLSWAP {mode === 'video' ? 'VIDEO' : 'VOICE'} CALL</div><h1>{targetName}</h1><div className="call-status"><i className={status === 'Connected' ? 'live' : ''} />{status}{status === 'Connected' && <span> · {elapsedText}</span>}</div>{sessionMeta && <div className={`session-countdown ${sessionRemaining !== null && sessionRemaining <= 60 ? 'urgent' : ''}`}><span>TIME LEFT</span><strong>{remainingText}</strong></div>}</div></div>
+        <div className="call-identity-v3"><button className="call-icon-btn" onClick={() => finish(false, 'LEFT_CALL_SCREEN')}><ArrowLeft size={18} /></button><div className="call-avatar">{initials(targetName)}</div><div><div className="call-overline">SKILLSWAP {mode === 'video' ? 'VIDEO' : 'VOICE'} CALL</div><h1>{targetName}</h1><div className="call-status"><i className={status === 'Connected' ? 'live' : ''} />{status}{status === 'Connected' && <span> · {elapsedText}</span>}</div>{sessionMeta && <div className={`session-countdown ${sessionRemaining !== null && sessionRemaining <= 60 ? 'urgent' : ''}`}><span>TIME LEFT</span><strong>{remainingText}</strong></div>}{sessionId && <div className="meeting-room-pill"><span>{roomParticipants}/2 in room</span></div>}</div></div>
         <div className="call-top-actions"><div className="secure-label"><ShieldCheck size={14} /> End-to-end WebRTC media</div><span className="participant-chip">{connectionType}</span><button className={`call-icon-btn ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((v) => !v)}><MessageCircle size={18} /></button><button className="call-icon-btn" onClick={() => setFullscreen((v) => !v)}><Maximize2 size={18} /></button></div>
       </header>
       {error && <div className="call-error-v3"><span>{error}</span><button onClick={() => setError('')}><X size={15} /></button></div>}
@@ -449,7 +492,7 @@ export default function Call() {
         <section className={`call-stage-v3 native-stage ${mode === 'audio' ? 'audio-stage' : ''}`}>
           {mode === 'video' ? <><video ref={remoteVideoRef} className="remote-video" autoPlay playsInline /><video ref={localVideoRef} className="local-video" autoPlay muted playsInline /><div className="video-fallback"><div className="call-avatar large">{initials(targetName)}</div><strong>{targetName}</strong><span>{remoteReady ? 'Camera connected' : status}</span></div></> : <div className="voice-stage"><div className="voice-avatar">{initials(targetName)}</div><strong>{targetName}</strong><span>{status}</span><small>{connectionType}</small></div>}
           <audio ref={remoteAudioRef} autoPlay playsInline />
-          {status !== 'Connected' && <div className="meeting-loading"><div className="meeting-spinner" /><strong>{status === 'Calling' ? `Calling ${targetName}` : status === 'Unavailable' ? 'Call could not start' : status}</strong><span>{error || 'Establishing a secure media connection…'}</span></div>}
+          {status !== 'Connected' && <div className="meeting-loading"><div className="meeting-spinner" /><strong>{sessionId ? (roomParticipants < 2 ? 'Waiting for your learning partner' : 'Connecting both participants…') : (status === 'Calling' ? `Calling ${targetName}` : status === 'Unavailable' ? 'Call could not start' : status)}</strong><span>{error || (sessionId ? (roomParticipants < 2 ? 'You are in the scheduled meeting room. The session will start when the other participant joins.' : 'Both participants are here. Setting up the secure video connection…') : 'Establishing a secure media connection…')}</span>{sessionId && roomParticipants < 2 && <small className="meeting-room-note">Meeting room · {durationLabel || '60 min'} · Session time is fixed</small>}</div>}
           <div className="meeting-brand"><span>SKILLSWAP</span><small>Private two-person call</small></div>
         </section>
         {chatOpen && <aside className="call-chat-v3"><div className="call-chat-top"><div><span>CALL CHAT</span><strong>{targetName}</strong></div><button onClick={() => setChatOpen(false)}><X size={17} /></button></div><div className="call-chat-list">{messages.length ? messages.map((m) => <div className={`call-msg ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}>{m.text && <span>{m.text}</span>}{m.attachment && <a className="chat-file" href={m.attachment.url} target="_blank" rel="noreferrer">📎 <strong>{m.attachment.name}</strong></a>}<small>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small></div>) : <div className="chat-empty"><MessageCircle size={25} /><strong>Keep talking while you learn</strong><span>Send a message without leaving the call.</span></div>}</div><form onSubmit={sendMessage} className="call-composer"><label className="chat-attach" title="Send photo or document">📎<input type="file" onChange={sendAttachment} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden /></label><input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Message…" /><button type="submit"><Send size={16} /></button></form></aside>}
