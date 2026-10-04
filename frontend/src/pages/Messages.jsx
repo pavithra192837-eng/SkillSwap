@@ -249,8 +249,7 @@ export default function Messages() {
           <div className="conversation-actions"><button title="Voice call" aria-label="Voice call" onClick={() => call('voice')}><Phone size={19}/></button><button title="Video call" aria-label="Video call" onClick={() => call('video')}><Video size={19}/></button></div>
         </header>
         {error && <div className="message-alert" role="alert"><strong>Chat issue</strong><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
-        <div className="realtime-banner"><Wifi size={14}/>{firebaseReady ? 'Real-time messaging connected' : 'Connecting to real-time messaging…'}</div>
-        <div
+                <div
           className={`messages-scroll ${dragActive ? 'drag-active' : ''}`}
           ref={messagesScrollRef}
           onScroll={e => { shouldStickToBottom.current = isNearBottom(e.currentTarget); }}
@@ -268,7 +267,7 @@ export default function Messages() {
               </a>}
               <small className="message-time">{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small>
             </div>
-          </div>) : <div className="messages-zero"><div><MessageCircle size={25}/></div><h3>Start the exchange</h3><p>Say hello and agree on what you want to learn in your first session.</p></div>}
+          </div>) : <div className="chat-empty"><div className="chat-empty-icon"><MessageCircle size={22}/></div><strong>No messages yet</strong><span>Say hello to {selected.name} to start your exchange.</span></div>}
         </div>
         <form className="message-composer" onSubmit={send}>
           <div className="composer-tools">
@@ -281,7 +280,7 @@ export default function Messages() {
           <button className="composer-send" disabled={!text.trim() || sending} aria-label="Send message" title="Send message">{sending ? <LoaderCircle size={18} className="spin"/> : <Send size={18}/>}</button>
         </form>
         <div className="composer-status">{uploadJobs[chatId(user.id, selected?.user_id || '')] ? <><LoaderCircle size={13} className="spin"/> Uploading {uploadJobs[chatId(user.id, selected?.user_id || '')].progress}% · {uploadJobs[chatId(user.id, selected?.user_id || '')].name}</> : justSent ? <><CheckCircle2 size={13}/> Sent</> : <><Smile size={13}/> Enter to send · Shift + Enter for a new line</>}</div>
-      </> : <div className="messages-zero"><div><MessageCircle size={28}/></div><h2>Your conversations</h2><p>Choose an accepted connection to chat, call or plan a session.</p></div>}
+      </> : <div className="chat-welcome"><div className="chat-welcome-icon"><MessageCircle size={34}/></div><h2>SkillSwap Messages</h2><p>Select a connection to start chatting.</p></div>}
     </section>
   </div>;
 }
