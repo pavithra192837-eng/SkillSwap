@@ -27,7 +27,7 @@ function explainFirebaseError(error, fallback) {
   return error?.message || fallback;
 }
 
-const isNearBottom = element => element.scrollHeight - element.scrollTop - element.clientHeight < 120;
+const isNearBottom = element => element.scrollHeight - element.scrollTop - element.clientHeight <= 24;
 
 export default function Messages() {
   const { user } = useAuth();
@@ -47,7 +47,6 @@ export default function Messages() {
   const [uploadJobs, setUploadJobs] = useState({});
   const [dragActive, setDragActive] = useState(false);
   const [justSent, setJustSent] = useState(false);
-  const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -108,8 +107,17 @@ export default function Messages() {
 
   useEffect(() => {
     const el = messagesScrollRef.current;
-    if (!el || !shouldStickToBottom.current) return;
-    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
+    if (!el) return;
+
+    // WhatsApp-style behavior: only follow the bottom when the user was
+    // already at the bottom. If they scroll up to read older messages,
+    // incoming/realtime updates must never pull them back down.
+    const wasAtBottom = shouldStickToBottom.current;
+    if (!wasAtBottom) return;
+
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, [messages]);
 
   const filtered = useMemo(
@@ -261,7 +269,6 @@ export default function Messages() {
               <small className="message-time">{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small>
             </div>
           </div>) : <div className="messages-zero"><div><MessageCircle size={25}/></div><h3>Start the exchange</h3><p>Say hello and agree on what you want to learn in your first session.</p></div>}
-          <div ref={messagesEndRef} />
         </div>
         <form className="message-composer" onSubmit={send}>
           <div className="composer-tools">
