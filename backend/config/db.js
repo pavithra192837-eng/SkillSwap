@@ -8,6 +8,10 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || "skillswap",
   port: Number(process.env.DB_PORT) || 3306,
 
+  // Session times are stored as UTC instants in MySQL DATETIME fields.
+  // mysql2 must parse DATETIME values as UTC before JSON serialization.
+  timezone: 'Z',
+
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

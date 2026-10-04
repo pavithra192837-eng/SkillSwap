@@ -123,7 +123,7 @@ const getDashboard = async (req, res) => {
         WHERE
           (s.user1_id = ? OR s.user2_id = ?)
           AND s.status = 'SCHEDULED'
-          AND s.scheduled_at >= NOW()
+          AND s.scheduled_at >= UTC_TIMESTAMP()
         ORDER BY s.scheduled_at ASC
         LIMIT 5
         `,
@@ -145,9 +145,9 @@ const getDashboard = async (req, res) => {
              (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='COMPLETED' AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS completed_teaching,
              (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.lesson_type IN ('LEARNING','BOTH') AND s.learner_id = ?) AS scheduled_learning,
              (SELECT COUNT(*) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS scheduled_teaching,
-             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= NOW()) AS next_session_at,
-             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= NOW() AND s.lesson_type IN ('LEARNING','BOTH') AND s.learner_id = ?) AS next_learning_at,
-             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= NOW() AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS next_teaching_at
+             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= UTC_TIMESTAMP()) AS next_session_at,
+             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= UTC_TIMESTAMP() AND s.lesson_type IN ('LEARNING','BOTH') AND s.learner_id = ?) AS next_learning_at,
+             (SELECT MIN(s.scheduled_at) FROM sessions s WHERE s.request_id = er.id AND s.status='SCHEDULED' AND s.scheduled_at >= UTC_TIMESTAMP() AND s.lesson_type IN ('TEACHING','BOTH') AND s.teacher_id = ?) AS next_teaching_at
       FROM exchange_requests er
       JOIN users sender ON sender.id=er.sender_id
       JOIN users receiver ON receiver.id=er.receiver_id

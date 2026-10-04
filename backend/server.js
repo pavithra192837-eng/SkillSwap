@@ -195,24 +195,20 @@ async function startServer() {
         const [expired] = await connection.query(`
           SELECT id, user1_id, user2_id
           FROM sessions
-          WHERE (
-            (status = 'ONGOING' AND started_at IS NOT NULL
-              AND DATE_ADD(started_at, INTERVAL duration_minutes MINUTE) <= NOW())
-            OR
-            (status = 'SCHEDULED' AND DATE_ADD(scheduled_at, INTERVAL duration_minutes MINUTE) <= NOW())
-          )
+          WHERE status IN ('SCHEDULED','ONGOING')
+            AND DATE_ADD(scheduled_at, INTERVAL duration_minutes MINUTE) <= UTC_TIMESTAMP()
           FOR UPDATE
         `);
         if (expired.length) {
           const ids = expired.map((row) => row.id);
           await connection.query(`
             UPDATE sessions
-            SET status = 'COMPLETED', ended_at = NOW(), end_reason = 'TIME_EXPIRED'
+            SET status = 'COMPLETED', ended_at = UTC_TIMESTAMP(), end_reason = 'TIME_EXPIRED'
             WHERE id IN (${ids.map(() => '?').join(',')})
           `, ids);
           await connection.query(`
             UPDATE learning_progress
-            SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW())
+            SET status = 'COMPLETED', completed_at = COALESCE(completed_at, UTC_TIMESTAMP())
             WHERE session_id IN (${ids.map(() => '?').join(',')}) AND status = 'IN_PROGRESS'
           `, ids);
           // Promote a learned skill automatically when all planned lessons

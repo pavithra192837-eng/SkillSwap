@@ -37,10 +37,13 @@ export default function Call() {
   const location = useLocation();
   const [params] = useSearchParams();
   const incoming = params.get('incoming') === '1';
-  const callId = params.get('callId') || useMemo(randomId, []);
   const targetId = Number(params.get('userId'));
   const targetName = params.get('name') || 'SkillSwap student';
   const sessionId = params.get('sessionId');
+  const generatedCallId = useMemo(randomId, []);
+  // A scheduled lesson gets one deterministic room ID. Both participants can
+  // enter from the Sessions page without accidentally creating two call rooms.
+  const callId = params.get('callId') || (sessionId ? `session-${sessionId}` : generatedCallId);
   const mode = location.pathname.includes('video-call') ? 'video' : 'audio';
   const callRef = useMemo(() => realtimeDb ? ref(realtimeDb, `calls/${callId}`) : null, [callId]);
   const signalRef = useMemo(() => realtimeDb ? ref(realtimeDb, `calls/${callId}/signals`) : null, [callId]);
@@ -80,6 +83,9 @@ export default function Call() {
   const [sessionSummary, setSessionSummary] = useState(null);
   const [remoteReady, setRemoteReady] = useState(false);
   const [connectionType, setConnectionType] = useState('Checking connection');
+  // Session rooms use a deterministic tie-breaker so two people joining
+  // from the Sessions page can negotiate even if neither uses the incoming-call popup.
+  politeRef.current = sessionId ? Number(user?.id) > Number(targetId) : incoming;
 
   const cleanupMedia = useCallback(() => {
     const stream = localStreamRef.current;
@@ -163,7 +169,7 @@ export default function Call() {
   useEffect(() => {
     if (!sessionId || !sessionMeta || ['COMPLETED', 'CANCELLED'].includes(sessionMeta.status)) return undefined;
     const start = new Date(sessionMeta.scheduled_at).getTime();
-    if (Date.now() >= start && sessionMeta.status !== 'IN_PROGRESS') {
+    if (Date.now() >= start && sessionMeta.status === 'SCHEDULED') {
       api.put(`/sessions/${sessionId}/start`).then(() => api.get(`/sessions/${sessionId}`)).then((r) => setSessionMeta(r.data.session)).catch((e) => {
         if (e?.response?.status !== 400 && e?.response?.status !== 409) setError(e?.response?.data?.message || 'This lesson cannot be started yet.');
       });
@@ -171,9 +177,11 @@ export default function Call() {
   }, [sessionId, sessionMeta?.scheduled_at, sessionMeta?.status]);
 
   useEffect(() => {
-    if (!sessionMeta?.started_at || !sessionMeta?.duration_minutes) return undefined;
+    if (!sessionMeta?.scheduled_at || !sessionMeta?.duration_minutes) return undefined;
     const tick = () => {
-      const start = new Date(sessionMeta.started_at).getTime();
+      // The lesson window is fixed: scheduled start + duration. It does not
+      // move when the first participant joins late.
+      const start = new Date(sessionMeta.scheduled_at).getTime();
       const end = start + Number(sessionMeta.duration_minutes) * 60000;
       const remaining = Math.max(0, end - Date.now());
       setSessionRemaining(Math.ceil(remaining / 1000));
@@ -317,18 +325,18 @@ export default function Call() {
 
     const unsubscribeSignals = onChildAdded(signalRef, handleSignal);
     const callMeta = incoming
-      ? { calleeId: Number(user.id), calleeName: user.name, type: mode, status: 'JOINING', joinedAt: serverTimestamp() }
-      : { callerId: Number(user.id), calleeId: targetId, callerName: user.name, type: mode, status: 'RINGING', createdAt: serverTimestamp() };
+      ? { calleeId: Number(user.id), calleeName: user.name, type: mode, status: 'JOINING', joinedAt: serverTimestamp(), sessionId: sessionId || null }
+      : { callerId: Number(user.id), calleeId: targetId, callerName: user.name, type: mode, status: 'RINGING', createdAt: serverTimestamp(), sessionId: sessionId || null };
     await update(callRef, callMeta);
     if (!alive()) { unsubscribeSignals(); return; }
     if (!incoming) {
-      await set(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`), { callerId: Number(user.id), callerName: user.name, type: mode, status: 'RINGING', createdAt: Date.now() });
+      await set(ref(realtimeDb, `incomingCalls/${targetId}/${callId}`), { callerId: Number(user.id), callerName: user.name, type: mode, status: 'RINGING', createdAt: Date.now(), sessionId: sessionId || null });
     } else {
       await remove(ref(realtimeDb, `incomingCalls/${user.id}/${callId}`));
     }
 
     cleanupRef.current = () => { try { unsubscribeSignals(); } catch {} };
-  }, [callId, callRef, incoming, mode, signalRef, targetId, user?.id, user?.name]);
+  }, [callId, callRef, incoming, mode, sessionId, signalRef, targetId, user?.id, user?.name]);
 
   useEffect(() => {
     let cancelled = false;

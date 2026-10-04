@@ -1,5 +1,6 @@
 
 const { pool } = require("../config/db");
+const { parseSessionDate, toMysqlUtc, validateFutureSessionTime } = require("../utils/sessionTime");
 
 // ========================================
 // CREATE SESSION
@@ -31,6 +32,16 @@ const createSession = async (req, res) => {
           "Request ID and scheduled time are required",
       });
     }
+
+    // Never store a browser's timezone-less datetime-local value directly.
+    // The frontend sends an ISO timestamp with its timezone; we normalize it
+    // to UTC before writing the MySQL DATETIME field.
+    const scheduledValidation = validateFutureSessionTime(scheduled_at);
+    if (!scheduledValidation.date) {
+      return res.status(400).json({ success: false, message: scheduledValidation.message });
+    }
+    const scheduledAtUtc = toMysqlUtc(scheduledValidation.date);
+
     if (!allowedDurations.includes(duration)) {
       return res.status(400).json({
         success: false,
@@ -118,7 +129,7 @@ const createSession = async (req, res) => {
       (request_id,user1_id,user2_id,scheduled_at,duration_minutes,session_number,schedule_note,status,meeting_id,lesson_type,learner_id,teacher_id,skill_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'SCHEDULED', ?, ?, ?, ?, ?)
       `,
-      [request_id,user1Id,user2Id,scheduled_at,duration,sessionNumber,req.body?.schedule_note || null,meeting_id || null,normalizedLessonType,learnerId,teacherId,skillId]
+      [request_id,user1Id,user2Id,scheduledAtUtc,duration,sessionNumber,req.body?.schedule_note || null,meeting_id || null,normalizedLessonType,learnerId,teacherId,skillId]
     );
 
     // Each exchange creates two learning directions:
@@ -180,7 +191,7 @@ const createSession = async (req, res) => {
         request_id: Number(request_id),
         user1_id: user1Id,
         user2_id: user2Id,
-        scheduled_at,
+        scheduled_at: scheduledValidation.date.toISOString(),
         duration_minutes: duration,
         session_number: sessionNumber,
         started_at: null,
@@ -223,6 +234,7 @@ const getSessions = async (req, res) => {
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        DATE_ADD(s.scheduled_at, INTERVAL s.duration_minutes MINUTE) AS ends_at,
         s.duration_minutes,
         s.session_number,
         s.lesson_type,
@@ -319,6 +331,7 @@ const getSessionById = async (
         s.user1_id,
         s.user2_id,
         s.scheduled_at,
+        DATE_ADD(s.scheduled_at, INTERVAL s.duration_minutes MINUTE) AS ends_at,
         s.duration_minutes,
         s.started_at,
         s.ended_at,
@@ -433,13 +446,16 @@ const updateSession = async (
     // ------------------------------------
     // Update scheduled time
     // ------------------------------------
-    if (
-      scheduled_at !== undefined
-    ) {
-      updates.push(
-        "scheduled_at = ?"
-      );
-      values.push(scheduled_at);
+    if (scheduled_at !== undefined) {
+      const parsed = parseSessionDate(scheduled_at);
+      if (!parsed) {
+        return res.status(400).json({ success: false, message: 'Invalid session date/time. Send an ISO date with a timezone.' });
+      }
+      if (parsed.getTime() < Date.now() + 30 * 1000) {
+        return res.status(400).json({ success: false, message: 'Choose a future date and time for the session.' });
+      }
+      updates.push("scheduled_at = ?");
+      values.push(toMysqlUtc(parsed));
     }
 
     // ------------------------------------
@@ -551,7 +567,7 @@ const startSession = async (
       return res.status(409).json({ success:false, message:`This lesson starts at ${new Date(session.scheduled_at).toLocaleString()}. You can join when the scheduled time begins.` });
     }
     if (now >= endAt) {
-      await pool.query(`UPDATE sessions SET status='COMPLETED', ended_at=COALESCE(ended_at,NOW()), end_reason=COALESCE(end_reason,'TIME_EXPIRED') WHERE id=? AND status='SCHEDULED'`, [sessionId]);
+      await pool.query(`UPDATE sessions SET status='COMPLETED', ended_at=COALESCE(ended_at,UTC_TIMESTAMP()), end_reason=COALESCE(end_reason,'TIME_EXPIRED') WHERE id=? AND status='SCHEDULED'`, [sessionId]);
       return res.status(409).json({ success:false, message:'This lesson window has ended. Use Sessions to schedule another lesson.' });
     }
 
@@ -582,7 +598,7 @@ const startSession = async (
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'ONGOING', started_at = COALESCE(started_at, NOW()), ended_at = NULL, ended_by = NULL, end_reason = NULL
+      SET status = 'ONGOING', started_at = COALESCE(started_at, UTC_TIMESTAMP()), ended_at = NULL, ended_by = NULL, end_reason = NULL
       WHERE id = ?
       `,
       [sessionId]
@@ -665,7 +681,7 @@ const completeSession = async (
     await pool.query(
       `
       UPDATE sessions
-      SET status = 'COMPLETED', ended_at = NOW(), ended_by = ?, end_reason = ?
+      SET status = 'COMPLETED', ended_at = UTC_TIMESTAMP(), ended_by = ?, end_reason = ?
       WHERE id = ?
       `,
       [userId, endReason, sessionId]
@@ -675,7 +691,7 @@ const completeSession = async (
     await pool.query(
       `
       UPDATE learning_progress
-      SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW())
+      SET status = 'COMPLETED', completed_at = COALESCE(completed_at, UTC_TIMESTAMP())
       WHERE session_id = ? AND status = 'IN_PROGRESS'
       `,
       [sessionId]
@@ -925,19 +941,22 @@ const rescheduleSession = async (req, res) => {
     const { scheduled_at, duration_minutes = 60, schedule_note } = req.body || {};
     const duration = Number(duration_minutes);
     if (!scheduled_at) return res.status(400).json({success:false,message:'Choose a new date and time.'});
+    const scheduledValidation = validateFutureSessionTime(scheduled_at);
+    if (!scheduledValidation.date) return res.status(400).json({success:false,message:scheduledValidation.message});
+    const scheduledAtUtc = toMysqlUtc(scheduledValidation.date);
     if (![30,45,60,90].includes(duration)) return res.status(400).json({success:false,message:'Duration must be 30, 45, 60, or 90 minutes.'});
     const [rows] = await pool.query(`SELECT * FROM sessions WHERE id=? AND (user1_id=? OR user2_id=?) LIMIT 1`, [sessionId,userId,userId]);
     if (!rows.length) return res.status(404).json({success:false,message:'Session not found.'});
     const old = rows[0];
     if (['COMPLETED','CANCELLED'].includes(old.status)) return res.status(400).json({success:false,message:'This lesson cannot be moved.'});
-    await pool.query(`UPDATE sessions SET status='CANCELLED',ended_at=NOW(),ended_by=?,end_reason='RESCHEDULED' WHERE id=?`, [userId,sessionId]);
+    await pool.query(`UPDATE sessions SET status='CANCELLED',ended_at=UTC_TIMESTAMP(),ended_by=?,end_reason='RESCHEDULED' WHERE id=?`, [userId,sessionId]);
     const [nextRows] = await pool.query(`SELECT COALESCE(MAX(session_number),0)+1 AS next_number FROM sessions WHERE request_id=?`, [old.request_id]);
     const nextNumber = Number(nextRows[0]?.next_number || 1);
     const [r] = await pool.query(`
       INSERT INTO sessions
       (request_id,user1_id,user2_id,scheduled_at,duration_minutes,session_number,rescheduled_from_id,schedule_note,status,meeting_id,lesson_type,learner_id,teacher_id,skill_id)
       VALUES(?,?,?,?,?,?,?,?, 'SCHEDULED',?,?,?,?,?)
-    `, [old.request_id,old.user1_id,old.user2_id,scheduled_at,duration,nextNumber,sessionId,schedule_note||null,old.meeting_id||null,old.lesson_type||'BOTH',old.learner_id||null,old.teacher_id||null,old.skill_id||null]);
+    `, [old.request_id,old.user1_id,old.user2_id,scheduledAtUtc,duration,nextNumber,sessionId,schedule_note||null,old.meeting_id||null,old.lesson_type||'BOTH',old.learner_id||null,old.teacher_id||null,old.skill_id||null]);
     await pool.query(`
       INSERT INTO notifications(user_id,type,title,message,reference_id,is_read)
       VALUES(?,?,?,?,?,FALSE),(?,?,?,?,?,FALSE)

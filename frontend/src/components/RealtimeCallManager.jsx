@@ -51,7 +51,7 @@ export default function RealtimeCallManager() {
 
   const accept = () => {
     setIncoming(null);
-    navigate(`/${incoming.type === 'video' ? 'video' : 'voice'}-call?incoming=1&callId=${encodeURIComponent(incoming.callId)}&userId=${encodeURIComponent(incoming.callerId)}&callerId=${encodeURIComponent(incoming.callerId)}&name=${encodeURIComponent(incoming.callerName || 'SkillSwap user')}`);
+    navigate(`/${incoming.type === 'video' ? 'video' : 'voice'}-call?incoming=1&callId=${encodeURIComponent(incoming.callId)}&userId=${encodeURIComponent(incoming.callerId)}&callerId=${encodeURIComponent(incoming.callerId)}&sessionId=${encodeURIComponent(incoming.sessionId || '')}&name=${encodeURIComponent(incoming.callerName || 'SkillSwap user')}`);
   };
 
   return <div className="incoming-call-toast">
