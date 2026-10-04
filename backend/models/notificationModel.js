@@ -133,11 +133,6 @@ const markAllNotificationsAsRead = async (
 // ========================================
 // DELETE NOTIFICATION
 // ========================================
-const deleteAllNotifications = async (userId) => {
-  const [result] = await pool.query(`DELETE FROM notifications WHERE user_id = ?`, [userId]);
-  return result.affectedRows;
-};
-
 const deleteNotification = async (
   notificationId,
   userId
@@ -155,6 +150,17 @@ const deleteNotification = async (
   );
 
   return result.affectedRows > 0;
+};
+
+// ========================================
+// DELETE ALL USER NOTIFICATIONS
+// ========================================
+const deleteAllNotifications = async (userId) => {
+  const [result] = await pool.query(
+    `DELETE FROM notifications WHERE user_id = ?`,
+    [userId]
+  );
+  return result.affectedRows;
 };
 
 // ========================================
