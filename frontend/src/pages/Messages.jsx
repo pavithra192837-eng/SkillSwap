@@ -21,9 +21,6 @@ async function ensureFirebase() {
 
 function explainFirebaseError(error, fallback) {
   const code = error?.code || '';
-  if (code.includes('storage/unauthorized') || code.includes('storage/unauthenticated')) return 'Firebase Storage rejected this upload. Check Storage rules and Anonymous Authentication.';
-  if (code.includes('storage/quota-exceeded')) return 'Firebase Storage quota has been exceeded.';
-  if (code.includes('storage/canceled')) return 'The upload was canceled.';
   if (code.includes('permission-denied') || code.includes('PERMISSION_DENIED')) return 'Firebase denied this message. Check Realtime Database rules and Anonymous Authentication.';
   if (code.includes('auth/operation-not-allowed')) return 'Firebase Anonymous Authentication is disabled. Enable it in Firebase Authentication.';
   if (code.includes('auth/network-request-failed')) return 'Firebase could not be reached. Check your internet connection and Firebase configuration.';

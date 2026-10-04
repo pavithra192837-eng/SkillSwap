@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const multer = require('multer');
 const authMiddleware = require('../middleware/authMiddleware');
 const { pool } = require('../config/db');
 
@@ -23,79 +24,85 @@ const allowedExtensions = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.zip',
 ]);
 
-// Uses Node's built-in multipart/form-data parser. No multer or paid storage service is required.
-router.post('/chat', authMiddleware, async (req, res) => {
-  let savedPath = null;
-  try {
-    const contentType = String(req.headers['content-type'] || '');
-    if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
-      return res.status(415).json({ success: false, message: 'Use multipart/form-data for file uploads.' });
-    }
-
-    const request = new Request(`http://skillswap.local${req.originalUrl || req.url}`, {
-      method: req.method,
-      headers: req.headers,
-      body: req,
-      duplex: 'half',
-    });
-    const form = await request.formData();
-    const file = form.get('file');
-    const recipientId = Number(form.get('recipientId'));
-    const conversationId = String(form.get('conversationId') || '');
-    const senderId = Number(req.user.id);
-
-    if (!file || typeof file.arrayBuffer !== 'function') {
-      return res.status(400).json({ success: false, message: 'Choose a file to upload.' });
-    }
-    if (!Number.isInteger(recipientId) || !conversationId) {
-      return res.status(400).json({ success: false, message: 'Invalid chat recipient.' });
-    }
-
-    const expectedConversationId = [senderId, recipientId].sort((a, b) => a - b).join('_');
-    if (conversationId !== expectedConversationId) {
-      return res.status(400).json({ success: false, message: 'Invalid conversation.' });
-    }
-
-    const [connection] = await pool.query(`
-      SELECT id FROM exchange_requests
-      WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?))
-        AND status='ACCEPTED'
-      LIMIT 1
-    `, [senderId, recipientId, recipientId, senderId]);
-    if (!connection.length) {
-      return res.status(403).json({ success: false, message: 'You can only share files with an accepted SkillSwap connection.' });
-    }
-
-    const originalName = String(file.name || 'file').slice(0, 180);
-    const extension = path.extname(originalName).toLowerCase();
-    const mimeType = String(file.type || 'application/octet-stream');
-    const size = Number(file.size || 0);
-    if (size <= 0) return res.status(400).json({ success: false, message: 'The selected file is empty.' });
-    if (size > MAX_FILE_SIZE) return res.status(413).json({ success: false, message: 'File is too large. Maximum size is 20 MB.' });
-    if (!allowedExtensions.has(extension) || !allowedMimeTypes.has(mimeType)) {
-      return res.status(400).json({ success: false, message: 'Unsupported file type. Photos, PDF, Office files, TXT, CSV and ZIP are allowed.' });
-    }
-
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const conversationId = String(req.body?.conversationId || '');
+    if (!/^\d+_\d+$/.test(conversationId)) return cb(new Error('Invalid conversation.'));
     const directory = path.join(uploadRoot, conversationId);
     fs.mkdirSync(directory, { recursive: true });
-    const base = path.basename(originalName, extension).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'file';
-    const storedName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${base}${extension}`;
-    savedPath = path.join(directory, storedName);
-    const bytes = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(savedPath, bytes);
+    cb(null, directory);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const base = path.basename(file.originalname || 'file', ext)
+      .replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'file';
+    cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${base}${ext}`);
+  },
+});
 
-    const relativePath = path.relative(path.join(__dirname, '..'), savedPath).split(path.sep).join('/');
-    const url = `${req.protocol}://${req.get('host')}/${relativePath}`;
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_FILE_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const mime = String(file.mimetype || '').toLowerCase();
+    if (!allowedExtensions.has(ext) || !allowedMimeTypes.has(mime)) {
+      return cb(new Error('Unsupported file type. Photos, PDF, Office files, TXT, CSV and ZIP are allowed.'));
+    }
+    cb(null, true);
+  },
+});
 
-    return res.status(201).json({
-      success: true,
-      attachment: { url, name: originalName, size, type: mimeType },
-    });
-  } catch (error) {
-    if (savedPath) fs.rmSync(savedPath, { force: true });
-    console.error('Chat upload error:', error.message);
-    return res.status(500).json({ success: false, message: 'Could not save the attachment.' });
-  }
+router.post('/chat', authMiddleware, (req, res) => {
+  upload.single('file')(req, res, async error => {
+    if (error) {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ success: false, message: 'File is too large. Maximum size is 20 MB.' });
+      }
+      return res.status(400).json({ success: false, message: error.message || 'Could not read the uploaded file.' });
+    }
+
+    let savedPath = req.file?.path || null;
+    try {
+      const recipientId = Number(req.body?.recipientId);
+      const conversationId = String(req.body?.conversationId || '');
+      const senderId = Number(req.user.id);
+
+      if (!req.file) return res.status(400).json({ success: false, message: 'Choose a file to upload.' });
+      if (!Number.isInteger(recipientId) || recipientId <= 0 || !/^\d+_\d+$/.test(conversationId)) {
+        return res.status(400).json({ success: false, message: 'Invalid chat recipient.' });
+      }
+
+      const expectedConversationId = [senderId, recipientId].sort((a, b) => a - b).join('_');
+      if (conversationId !== expectedConversationId) {
+        return res.status(400).json({ success: false, message: 'Invalid conversation.' });
+      }
+
+      const [connection] = await pool.query(`
+        SELECT id FROM exchange_requests
+        WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?))
+          AND status='ACCEPTED'
+        LIMIT 1
+      `, [senderId, recipientId, recipientId, senderId]);
+      if (!connection.length) {
+        return res.status(403).json({ success: false, message: 'You can only share files with an accepted SkillSwap connection.' });
+      }
+
+      const relativePath = path.relative(path.join(__dirname, '..'), savedPath).split(path.sep).join('/');
+      const url = `${req.protocol}://${req.get('host')}/${relativePath}`;
+      const size = Number(req.file.size || 0);
+      const mimeType = String(req.file.mimetype || 'application/octet-stream');
+
+      return res.status(201).json({
+        success: true,
+        attachment: { url, name: req.file.originalname, size, type: mimeType },
+      });
+    } catch (err) {
+      if (savedPath) fs.rmSync(savedPath, { force: true });
+      console.error('Chat upload error:', err);
+      return res.status(500).json({ success: false, message: 'Could not save the attachment.' });
+    }
+  });
 });
 
 module.exports = router;
