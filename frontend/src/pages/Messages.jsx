@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onDisconnect, onValue, push, ref, serverTimestamp, set } from 'firebase/database';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
+import { getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { MessageCircle, Phone, Video, Search, Send, UsersRound, Wifi, Circle, Paperclip, Image as ImageIcon, FileText, Smile, LoaderCircle, CheckCircle2 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -48,10 +48,11 @@ export default function Messages() {
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [online, setOnline] = useState(false);
   const [sending, setSending] = useState(false);
-  const [sendingFile, setSendingFile] = useState(false);
+  const [uploadJobs, setUploadJobs] = useState({});
   const [dragActive, setDragActive] = useState(false);
   const [justSent, setJustSent] = useState(false);
   const messagesEndRef = useRef(null);
+  const uploadTasksRef = useRef(new Map());
   const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -137,15 +138,55 @@ export default function Messages() {
       setError('Files must be 20 MB or smaller.');
       return;
     }
+
+    const conversationId = chatId(user.id, selected.user_id);
+    const recipient = { id: Number(selected.user_id), name: selected.name };
+    const jobId = `${conversationId}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
     try {
-      setSendingFile(true);
       setError('');
       await ensureFirebase();
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = storageRef(firebaseStorage, `chat-files/${chatId(user.id, selected.user_id)}/${Date.now()}-${safe}`);
-      await uploadBytes(path, file, { contentType: file.type || 'application/octet-stream' });
-      const url = await getDownloadURL(path);
-      await push(ref(realtimeDb, `chats/${chatId(user.id, selected.user_id)}/messages`), {
+      const fileRef = storageRef(firebaseStorage, `chat-files/${conversationId}/${Date.now()}-${safe}`);
+      const task = uploadBytesResumable(fileRef, file, {
+        contentType: file.type || 'application/octet-stream',
+        cacheControl: 'public,max-age=3600',
+      });
+
+      uploadTasksRef.current.set(jobId, task);
+      setUploadJobs(current => ({
+        ...current,
+        [conversationId]: { id: jobId, name: file.name, progress: 0, recipient },
+      }));
+
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (fn, value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          fn(value);
+        };
+        const timeout = setTimeout(() => {
+          try { task.cancel(); } catch {}
+          finish(reject, new Error('Upload timed out. Please try again or use a smaller file.'));
+        }, 120000);
+
+        task.on('state_changed',
+          snapshot => {
+            const progress = Math.min(100, Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
+            setUploadJobs(current => current[conversationId]?.id === jobId
+              ? { ...current, [conversationId]: { ...current[conversationId], progress } }
+              : current);
+          },
+          error => finish(reject, error),
+          () => finish(resolve)
+        );
+      });
+
+      const url = await getDownloadURL(fileRef);
+      const messageRef = push(ref(realtimeDb, `chats/${conversationId}/messages`));
+      await set(messageRef, {
         senderId: Number(user.id),
         senderName: user.name,
         attachment: { url, name: file.name, size: file.size, type: file.type || 'application/octet-stream' },
@@ -154,16 +195,22 @@ export default function Messages() {
       setJustSent(true);
       setTimeout(() => setJustSent(false), 1200);
     } catch (e) {
-      setError(explainFirebaseError(e, 'Could not send the file.'));
+      setError(explainFirebaseError(e, 'Could not send the attachment. Nothing was added to the chat.'));
     } finally {
-      setSendingFile(false);
+      uploadTasksRef.current.delete(jobId);
+      setUploadJobs(current => {
+        if (current[conversationId]?.id !== jobId) return current;
+        const next = { ...current };
+        delete next[conversationId];
+        return next;
+      });
     }
   };
 
   const handleFileInput = async e => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    await sendAttachment(file);
+    if (file) await sendAttachment(file);
   };
 
   const handleDrop = async e => {
@@ -193,6 +240,11 @@ export default function Messages() {
   };
 
   const call = type => navigate(`/${type === 'video' ? 'video' : 'voice'}-call?userId=${selected.user_id}&name=${encodeURIComponent(selected.name)}`);
+  useEffect(() => () => {
+    uploadTasksRef.current.forEach(task => { try { task.cancel(); } catch {} });
+    uploadTasksRef.current.clear();
+  }, []);
+
   const handleComposerKeyDown = e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -241,15 +293,15 @@ export default function Messages() {
         </div>
         <form className="message-composer" onSubmit={send}>
           <div className="composer-tools">
-            <button type="button" className="composer-icon" title="Send photo" aria-label="Send photo" onClick={() => imageInputRef.current?.click()} disabled={sendingFile}><ImageIcon size={19}/></button>
-            <button type="button" className="composer-icon" title="Attach file" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} disabled={sendingFile}><Paperclip size={19}/></button>
+            <button type="button" className="composer-icon" title="Send photo" aria-label="Send photo" onClick={() => imageInputRef.current?.click()} disabled={Boolean(uploadJobs[chatId(user.id, selected?.user_id || '')])}><ImageIcon size={19}/></button>
+            <button type="button" className="composer-icon" title="Attach file" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} disabled={Boolean(uploadJobs[chatId(user.id, selected?.user_id || '')])}><Paperclip size={19}/></button>
             <input ref={imageInputRef} type="file" hidden onChange={handleFileInput} accept="image/*"/>
             <input ref={fileInputRef} type="file" hidden onChange={handleFileInput} accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"/>
           </div>
           <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={handleComposerKeyDown} placeholder={`Write a message to ${selected.name}…`} aria-label={`Message ${selected.name}`} rows={1} autoComplete="off"/>
-          <button className="composer-send" disabled={!text.trim() || sending || sendingFile} aria-label="Send message" title="Send message">{sending ? <LoaderCircle size={18} className="spin"/> : <Send size={18}/>}</button>
+          <button className="composer-send" disabled={!text.trim() || sending} aria-label="Send message" title="Send message">{sending ? <LoaderCircle size={18} className="spin"/> : <Send size={18}/>}</button>
         </form>
-        <div className="composer-status">{sendingFile ? <><LoaderCircle size={13} className="spin"/> Uploading attachment…</> : justSent ? <><CheckCircle2 size={13}/> Sent</> : <><Smile size={13}/> Enter to send · Shift + Enter for a new line</>}</div>
+        <div className="composer-status">{uploadJobs[chatId(user.id, selected?.user_id || '')] ? <><LoaderCircle size={13} className="spin"/> Uploading {uploadJobs[chatId(user.id, selected?.user_id || '')].progress}% · {uploadJobs[chatId(user.id, selected?.user_id || '')].name}</> : justSent ? <><CheckCircle2 size={13}/> Sent</> : <><Smile size={13}/> Enter to send · Shift + Enter for a new line</>}</div>
       </> : <div className="messages-zero"><div><MessageCircle size={28}/></div><h2>Your conversations</h2><p>Choose an accepted connection to chat, call or plan a session.</p></div>}
     </section>
   </div>;
