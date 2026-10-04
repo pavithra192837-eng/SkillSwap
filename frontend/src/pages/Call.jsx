@@ -112,6 +112,7 @@ export default function Call() {
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const remoteDescriptionReadyRef = useRef(false);
+  const lastRemoteDescriptionRef = useRef(null);
   const candidateQueueRef = useRef([]);
   const politeRef = useRef(incoming);
   const startedAtRef = useRef(0);
@@ -162,6 +163,7 @@ export default function Call() {
     }
     makingOfferRef.current = false;
     remoteDescriptionReadyRef.current = false;
+    lastRemoteDescriptionRef.current = null;
     candidateQueueRef.current = [];
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     reconnectTimerRef.current = null;
@@ -420,12 +422,35 @@ export default function Call() {
         }
         if (signal.kind !== 'description' || !signal.description || pc.signalingState === 'closed') return;
         const description = signal.description;
-        const offerCollision = description.type === 'offer' && (makingOfferRef.current || pc.signalingState !== 'stable');
+
+        // Firebase keeps signalling records, so a newly created RTCPeerConnection
+        // can see an SDP message from an earlier negotiation. Never apply an old
+        // answer while the peer is already stable: doing so throws
+        // "Called in wrong state: stable".
+        const descriptionKey = `${description.type}:${description.sdp || ''}`;
+        if (lastRemoteDescriptionRef.current === descriptionKey) return;
+
+        // An answer is valid only after we created a local offer. Ignore stale or
+        // duplicate answers instead of putting the peer connection into an invalid
+        // signalling state.
+        if (description.type === 'answer' && pc.signalingState !== 'have-local-offer') return;
+
+        const offerCollision = description.type === 'offer' &&
+          (makingOfferRef.current || pc.signalingState !== 'stable');
         ignoreOfferRef.current = !politeRef.current && offerCollision;
         if (ignoreOfferRef.current) return;
+
+        // Perfect-negotiation rollback: if both sides created an offer at the same
+        // time, the polite side rolls back before accepting the incoming offer.
+        if (description.type === 'offer' && offerCollision && politeRef.current) {
+          await pc.setLocalDescription({ type: 'rollback' });
+        }
+
         await pc.setRemoteDescription(description);
+        lastRemoteDescriptionRef.current = descriptionKey;
         remoteDescriptionReadyRef.current = true;
         await flushCandidates();
+
         if (description.type === 'offer') {
           if (!alive() || pc.signalingState === 'closed') return;
           await pc.setLocalDescription();
