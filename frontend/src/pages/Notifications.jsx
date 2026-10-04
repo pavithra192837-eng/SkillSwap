@@ -1,131 +1,74 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Bell, Check, CheckCheck, UserPlus, MessageCircle, Calendar, Star, Users, Video, ArrowLeft, MoreHorizontal, Trash2, X } from "lucide-react";
-import api, { getErrorMessage } from "../api";
-import "./Notifications.css";
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, UserPlus, MessageCircle, Calendar, Star, Users, Video, ArrowLeft, MoreHorizontal, Trash2, Check, RotateCcw } from 'lucide-react';
+import api, { getErrorMessage } from '../api';
+import './Notifications.css';
 
-function typeName(value = "") { return String(value).toLowerCase(); }
-function timeText(value) {
-  if (!value) return "";
+const typeName = value => String(value || '').toLowerCase();
+const timeText = value => {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  const diff = Date.now() - date.getTime();
-  if (diff < 60_000) return "now";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
-  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d`;
-  return date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
-}
+  if (Number.isNaN(date.getTime())) return '';
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return 'now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
+  return date.toLocaleDateString([], { day: 'numeric', month: 'short' });
+};
 
 export default function Notifications() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const [tab, setTab] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [menuId, setMenuId] = useState(null);
-  const [activeTab, setActiveTab] = useState("all");
-  const [clearing, setClearing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [error, setError] = useState('');
 
   const load = async () => {
-    try {
-      setError("");
-      const response = await api.get("/notifications");
-      setNotifications(response.data.notifications || []);
-    } catch (e) {
-      setError(getErrorMessage(e, "Could not load notifications."));
-    } finally { setLoading(false); }
+    try { setError(''); const response = await api.get('/notifications'); setNotifications(response.data.notifications || []); }
+    catch (e) { setError(getErrorMessage(e, 'Could not load notifications.')); }
+    finally { setLoading(false); }
   };
-
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 15000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const icon = (type) => {
-    const t = typeName(type);
-    if (t.includes("request")) return <UserPlus />;
-    if (t.includes("message")) return <MessageCircle />;
-    if (t.includes("session")) return <Calendar />;
-    if (t.includes("rating") || t.includes("completed")) return <Star />;
-    if (t.includes("call")) return <Video />;
-    if (t.includes("match")) return <Users />;
-    return <Bell />;
-  };
-
-  const markRead = async id => {
-    try {
-      await api.put(`/notifications/${id}/read`);
-      setNotifications(current => current.map(n => n.id === id ? { ...n, is_read: true } : n));
-    } catch (e) { setError(getErrorMessage(e, "Could not update notification.")); }
-  };
-
-  const markAllRead = async () => {
-    try {
-      await api.put("/notifications/read-all");
-      setNotifications(current => current.map(n => ({ ...n, is_read: true })));
-    } catch (e) { setError(getErrorMessage(e, "Could not mark notifications as read.")); }
-  };
-
-  const remove = async id => {
-    try {
-      await api.delete(`/notifications/${id}`);
-      setNotifications(current => current.filter(n => n.id !== id));
-      setMenuId(null);
-    } catch (e) { setError(getErrorMessage(e, "Could not remove notification.")); }
-  };
-
-  const clearAll = async () => {
-    if (!notifications.length || clearing) return;
-    if (!window.confirm("Clear all notifications? This cannot be undone.")) return;
-    try {
-      setClearing(true);
-      await api.delete("/notifications");
-      setNotifications([]);
-      setMenuId(null);
-    } catch (e) { setError(getErrorMessage(e, "Could not clear notifications.")); }
-    finally { setClearing(false); }
-  };
+  useEffect(() => { load(); const timer = setInterval(load, 10000); return () => clearInterval(timer); }, []);
 
   const unread = notifications.filter(n => !n.is_read).length;
-  const filtered = useMemo(() => activeTab === "unread" ? notifications.filter(n => !n.is_read) : notifications, [activeTab, notifications]);
+  const visible = useMemo(() => tab === 'unread' ? notifications.filter(n => !n.is_read) : notifications, [notifications, tab]);
 
-  return <main className="notifications-page" onClick={() => menuId && setMenuId(null)}>
+  const icon = type => { const t=typeName(type); if(t.includes('request'))return <UserPlus/>; if(t.includes('message'))return <MessageCircle/>; if(t.includes('session'))return <Calendar/>; if(t.includes('rating')||t.includes('completed'))return <Star/>; if(t.includes('call'))return <Video/>; if(t.includes('match'))return <Users/>; return <Bell/>; };
+
+  const markRead = async id => {
+    const old = notifications;
+    setNotifications(c => c.map(n => n.id === id ? {...n,is_read:true} : n)); setMenu(null);
+    try { await api.put(`/notifications/${id}/read`); } catch(e) { setNotifications(old); setError(getErrorMessage(e,'Could not mark notification as read.')); }
+  };
+  const markAll = async () => {
+    if (!unread || busy) return;
+    const old = notifications; setBusy(true); setNotifications(c=>c.map(n=>({...n,is_read:true})));
+    try { await api.put('/notifications/read-all'); } catch(e) { setNotifications(old); setError(getErrorMessage(e,'Could not mark notifications as read.')); } finally { setBusy(false); }
+  };
+  const remove = async id => {
+    const old=notifications; setNotifications(c=>c.filter(n=>n.id!==id)); setMenu(null);
+    try { await api.delete(`/notifications/${id}`); } catch(e) { setNotifications(old); setError(getErrorMessage(e,'Could not remove notification.')); }
+  };
+  const clearAll = async () => {
+    if (!notifications.length || busy) return;
+    if (!window.confirm('Clear all notifications? This cannot be undone.')) return;
+    const old=notifications; setBusy(true); setNotifications([]);
+    try { await api.delete('/notifications'); } catch(e) { setNotifications(old); setError(getErrorMessage(e,'Could not clear notifications.')); } finally { setBusy(false); }
+  };
+
+  return <main className="notifications-page">
     <header className="notifications-topbar">
-      <button className="notifications-back" onClick={() => navigate(-1)} aria-label="Back"><ArrowLeft size={19} /></button>
-      <div className="notifications-title-area">
-        <div className="notifications-title-icon"><Bell size={21} /></div>
-        <div><h1>Notifications</h1><p>Stay updated on your SkillSwap activity</p></div>
-      </div>
-      <div className="notifications-actions">
-        <button onClick={markAllRead} disabled={!unread} className="top-action"><CheckCheck size={16}/> <span>Mark all read</span></button>
-        <button onClick={clearAll} disabled={!notifications.length || clearing} className="top-action danger"><Trash2 size={16}/> <span>{clearing ? "Clearing…" : "Clear all"}</span></button>
-      </div>
+      <button className="notifications-back" onClick={()=>navigate('/dashboard')} aria-label="Back"><ArrowLeft size={19}/></button>
+      <div className="notifications-title-area"><div className="notifications-title-icon"><Bell size={21}/></div><div><h1>Notifications</h1><p>Updates about your SkillSwap activity</p></div></div>
+      <button className="notification-refresh" onClick={load} disabled={loading}><RotateCcw size={16}/></button>
     </header>
-
     <section className="notifications-container">
-      {error && <div className="notification-error"><span>{error}</span><button onClick={() => setError("")}><X size={16}/></button></div>}
-      <div className="notification-tabs">
-        <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>All <b>{notifications.length}</b></button>
-        <button className={activeTab === "unread" ? "active" : ""} onClick={() => setActiveTab("unread")}>Unread {unread > 0 && <b>{unread}</b>}</button>
-      </div>
-
+      <div className="notifications-toolbar"><div className="notification-tabs"><button className={tab==='all'?'active':''} onClick={()=>setTab('all')}>All <span>{notifications.length}</span></button><button className={tab==='unread'?'active':''} onClick={()=>setTab('unread')}>Unread <span>{unread}</span></button></div><div className="notification-actions"><button onClick={markAll} disabled={!unread||busy}><CheckCheck size={16}/> Mark all read</button><button onClick={clearAll} disabled={!notifications.length||busy}><Trash2 size={16}/> Clear all</button></div></div>
+      {error && <div className="notification-error">{error}</div>}
       <div className="notifications-list">
-        {loading ? <div className="empty-notifications"><Bell size={27} /><h2>Loading activity…</h2></div> : filtered.length === 0 ? <div className="empty-notifications"><div className="empty-icon"><Check size={28}/></div><h2>{activeTab === "unread" ? "You're all caught up" : "No notifications yet"}</h2><p>{activeTab === "unread" ? "You have no unread activity." : "New requests, messages, sessions and matches will appear here."}</p></div> : filtered.map(notification => <article key={notification.id} className={`notification-item ${!notification.is_read ? "notification-unread" : ""}`} onClick={() => !notification.is_read && markRead(notification.id)}>
-          <div className={`notification-icon notification-${typeName(notification.type)}`}>{icon(notification.type)}</div>
-          <div className="notification-content">
-            <div className="notification-heading"><h3>{notification.title || "SkillSwap update"}</h3>{!notification.is_read && <span className="unread-dot" />}</div>
-            <p>{notification.message || notification.description || "SkillSwap activity update"}</p>
-            <span className="notification-time">{timeText(notification.created_at)}</span>
-          </div>
-          <div className="notification-menu-wrap" onClick={e => e.stopPropagation()}>
-            <button className="notification-more" aria-label="Notification options" onClick={() => setMenuId(menuId === notification.id ? null : notification.id)}><MoreHorizontal size={19}/></button>
-            {menuId === notification.id && <div className="notification-menu">
-              {!notification.is_read && <button onClick={() => { markRead(notification.id); setMenuId(null); }}><Check size={15}/> Mark as read</button>}
-              <button className="delete-action" onClick={() => remove(notification.id)}><Trash2 size={15}/> Remove</button>
-            </div>}
-          </div>
-        </article>)}
+        {loading ? <div className="empty-notifications"><Bell size={28}/><h2>Loading…</h2></div> : !visible.length ? <div className="empty-notifications"><div className="empty-icon"><CheckCheck size={27}/></div><h2>{tab==='unread'?'You’re all caught up':'No notifications yet'}</h2><p>{tab==='unread'?'Nothing needs your attention right now.':'New requests, messages and session activity will appear here.'}</p></div> : visible.map(n=><article key={n.id} className={`notification-item ${!n.is_read?'notification-unread':''}`} onClick={()=>!n.is_read&&markRead(n.id)}><div className={`notification-icon notification-${typeName(n.type)}`}>{icon(n.type)}</div><div className="notification-content"><div className="notification-heading"><h3>{n.title}</h3><time>{timeText(n.created_at)}</time></div><p>{n.message || 'SkillSwap activity update'}</p></div>{!n.is_read&&<span className="unread-dot"/>}<div className="notification-menu-wrap"><button className="notification-more" onClick={e=>{e.stopPropagation();setMenu(menu===n.id?null:n.id)}} aria-label="Notification options"><MoreHorizontal size={18}/></button>{menu===n.id&&<div className="notification-menu"><button onClick={e=>{e.stopPropagation();n.is_read?remove(n.id):markRead(n.id)}}>{n.is_read?<><Trash2/> Remove</>:<><Check/> Mark as read</>}</button>{n.is_read&&<button onClick={e=>{e.stopPropagation();remove(n.id)}}><Trash2/> Delete</button>}</div>}</div></article>)}
       </div>
     </section>
   </main>;

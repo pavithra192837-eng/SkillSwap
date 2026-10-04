@@ -133,6 +133,11 @@ const markAllNotificationsAsRead = async (
 // ========================================
 // DELETE NOTIFICATION
 // ========================================
+const deleteAllNotifications = async (userId) => {
+  const [result] = await pool.query(`DELETE FROM notifications WHERE user_id = ?`, [userId]);
+  return result.affectedRows;
+};
+
 const deleteNotification = async (
   notificationId,
   userId
@@ -162,5 +167,6 @@ module.exports = {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  deleteAllNotifications,
 };
 
