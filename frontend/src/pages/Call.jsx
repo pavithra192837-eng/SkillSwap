@@ -573,88 +573,158 @@ export default function Call() {
     setCameraOff(!track.enabled);
   };
 
-  // Switch the active camera without ending the call or touching the audio track.
-  // Phones generally switch by facingMode; laptops/desktops switch between enumerated webcams.
+  // Switch cameras without restarting the peer connection or microphone.
+  // Some mobile camera drivers require the current camera to be released first.
   const flipCamera = async () => {
     if (cameraSwitching) return;
-    const currentStream = localStreamRef.current;
-    const oldTrack = currentStream?.getVideoTracks?.()[0];
+    const stream = localStreamRef.current;
+    const oldTrack = stream?.getVideoTracks?.()[0];
     const sender = pcRef.current?.getSenders?.().find((item) => item.track?.kind === 'video');
-    if (!currentStream || !oldTrack || !sender || !navigator?.mediaDevices?.getUserMedia) {
-      setError('Camera switching is not available right now. Make sure your video is turned on.');
+    if (!stream || !oldTrack || !sender || !navigator.mediaDevices?.getUserMedia) {
+      setError('Camera is not ready. Turn video on and allow camera access, then try again.');
       return;
     }
 
-    let cameraStream;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    const oldSettings = oldTrack.getSettings?.() || {};
+    const oldDeviceId = oldSettings.deviceId;
+    const oldFacing = oldSettings.facingMode || (cameraFacing === 'environment' ? 'environment' : 'user');
+    const nextFacing = oldFacing === 'environment' ? 'user' : 'environment';
+    const wasEnabled = oldTrack.enabled;
+    let newStream = null;
+    let newTrackInstalled = false;
     setCameraSwitching(true);
     setError('');
-    try {
-      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-      let videoConstraints;
 
+    try {
+      let devices = [];
+      try { devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput'); } catch {}
+
+      // Prefer an alternate device ID when available; facingMode is inconsistent across browsers.
+      let candidates = [];
       if (isMobile) {
-        const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
-        try {
-          cameraStream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: { exact: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          });
-        } catch (constraintError) {
-          // Some mobile browsers expose cameras more reliably through deviceId.
-          if (!['NotFoundError', 'OverconstrainedError', 'ConstraintNotSatisfiedError'].includes(constraintError?.name)) throw constraintError;
-          const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-          const currentId = oldTrack.getSettings?.().deviceId;
-          const currentIndex = devices.findIndex((d) => d.deviceId === currentId);
-          if (devices.length < 2) throw new Error('Only one camera is available on this device.');
-          const nextDevice = devices[(currentIndex + 1 + devices.length) % devices.length];
-          videoConstraints = { deviceId: { exact: nextDevice.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } };
-          cameraStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
+        candidates = [
+          { facingMode: { exact: nextFacing } },
+          { facingMode: { ideal: nextFacing } },
+        ];
+        const currentIndex = devices.findIndex((d) => d.deviceId && d.deviceId === oldDeviceId);
+        if (devices.length > 1) {
+          for (let i = 1; i < devices.length; i++) {
+            const device = devices[(Math.max(0, currentIndex) + i) % devices.length];
+            if (device.deviceId && device.deviceId !== oldDeviceId) candidates.push({ deviceId: { exact: device.deviceId } });
+          }
         }
       } else {
-        // facingMode usually has no front/back meaning on laptops. Cycle through actual webcams instead.
-        const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-        const currentId = oldTrack.getSettings?.().deviceId;
-        if (devices.length < 2) {
-          throw new Error('Only one camera is available on this laptop. To switch cameras, connect another webcam and allow browser camera access.');
+        const currentIndex = devices.findIndex((d) => d.deviceId && d.deviceId === oldDeviceId);
+        if (devices.length > 1) {
+          for (let i = 1; i < devices.length; i++) {
+            const device = devices[(Math.max(0, currentIndex) + i) % devices.length];
+            if (device.deviceId && device.deviceId !== oldDeviceId) candidates.push({ deviceId: { exact: device.deviceId } });
+          }
         }
-        let currentIndex = devices.findIndex((d) => d.deviceId === currentId);
-        if (currentIndex < 0) currentIndex = 0;
-        const nextDevice = devices[(currentIndex + 1) % devices.length];
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { deviceId: { exact: nextDevice.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
       }
 
-      const nextTrack = cameraStream.getVideoTracks()[0];
-      if (!nextTrack) throw new Error('No camera was returned by the device.');
-      nextTrack.enabled = oldTrack.enabled;
+      // First try opening the alternate camera normally. If a phone reports that the
+      // video source cannot start, release the old video track and retry below.
+      let lastError = null;
+      for (const video of candidates) {
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { ...video, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+          });
+          if (newStream?.getVideoTracks?.()[0]) break;
+          newStream?.getTracks?.().forEach((t) => t.stop());
+          newStream = null;
+        } catch (err) {
+          lastError = err;
+          if (['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(err?.name)) throw err;
+        }
+      }
+
+      if (!newStream?.getVideoTracks?.()[0]) {
+        // iOS Safari and some Android vendors only permit one active camera at once.
+        oldTrack.stop();
+        for (const video of candidates) {
+          try {
+            newStream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: { ...video, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } },
+            });
+            if (newStream?.getVideoTracks?.()[0]) break;
+            newStream?.getTracks?.().forEach((t) => t.stop());
+            newStream = null;
+          } catch (err) {
+            lastError = err;
+            newStream?.getTracks?.().forEach((t) => t.stop());
+            newStream = null;
+            if (['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(err?.name)) throw err;
+          }
+        }
+      }
+
+      const nextTrack = newStream?.getVideoTracks?.()[0];
+      if (!nextTrack) throw lastError || new Error(devices.length < 2
+        ? 'No second camera is available on this device.'
+        : 'The other camera could not start. Close other apps using the camera and try again.');
+
+      nextTrack.enabled = wasEnabled;
       await sender.replaceTrack(nextTrack);
-      currentStream.removeTrack(oldTrack);
-      currentStream.addTrack(nextTrack);
+      stream.removeTrack(oldTrack);
+      stream.addTrack(nextTrack);
+      localStreamRef.current = stream;
+      newTrackInstalled = true;
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = currentStream;
-        safePlay(localVideoRef.current);
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.playsInline = true;
+        await safePlay(localVideoRef.current);
       }
       oldTrack.stop();
-      const newDeviceId = nextTrack.getSettings?.().deviceId;
-      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-      const newDevice = devices.find((d) => d.kind === 'videoinput' && d.deviceId === newDeviceId);
-      // The value is used for mobile front/back choice; desktop button text uses camera name.
-      setCameraFacing((previous) => {
-        if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) return previous === 'user' ? 'environment' : 'user';
-        return newDevice?.label || 'webcam';
-      });
+      const actualFacing = nextTrack.getSettings?.().facingMode;
+      const nextDeviceId = nextTrack.getSettings?.().deviceId;
+      const allDevices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const selectedDevice = allDevices.find((d) => d.kind === 'videoinput' && d.deviceId === nextDeviceId);
+      setCameraFacing(isMobile ? (actualFacing || nextFacing) : (selectedDevice?.label || 'webcam'));
       setCameraOff(!nextTrack.enabled);
-    } catch (switchError) {
-      cameraStream?.getTracks?.().forEach((track) => track.stop());
-      const message = switchError?.name === 'NotAllowedError' || switchError?.name === 'PermissionDeniedError'
+    } catch (err) {
+      if (!newTrackInstalled) newStream?.getTracks?.().forEach((t) => t.stop());
+      const message = ['NotAllowedError', 'PermissionDeniedError'].includes(err?.name)
         ? 'Camera permission was denied. Allow camera access in your browser settings.'
-        : switchError?.name === 'NotFoundError' || switchError?.name === 'OverconstrainedError' || switchError?.name === 'ConstraintNotSatisfiedError'
-          ? 'No other available camera was found. Connect another webcam or check your camera settings.'
-          : switchError?.name === 'SecurityError'
-            ? 'Camera access requires HTTPS (or localhost during development).'
-            : (switchError?.message || 'Could not switch cameras. Your current call is still active.');
+        : err?.name === 'SecurityError'
+          ? 'Camera access requires HTTPS (or localhost during development).'
+          : err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError' || err?.name === 'ConstraintNotSatisfiedError'
+            ? 'No other camera was found. This device may have only one camera available.'
+            : err?.name === 'NotReadableError' || /video source|could not start|camera.*in use/i.test(err?.message || '')
+              ? 'The camera could not start. Close other apps using the camera, then try again.'
+              : (err?.message || 'Could not switch camera. Your microphone and call remain connected.');
+
+      // If the old track had to be stopped, try to restore its device/facing direction.
+      if (oldTrack.readyState === 'ended' && !newTrackInstalled) {
+        try {
+          const restoreVideo = oldDeviceId
+            ? { deviceId: { ideal: oldDeviceId } }
+            : { facingMode: { ideal: oldFacing } };
+          const restoredStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: restoreVideo });
+          const restoredTrack = restoredStream.getVideoTracks()[0];
+          if (restoredTrack) {
+            restoredTrack.enabled = wasEnabled;
+            await sender.replaceTrack(restoredTrack);
+            stream.removeTrack(oldTrack);
+            stream.addTrack(restoredTrack);
+            localStreamRef.current = stream;
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = stream;
+              localVideoRef.current.muted = true;
+              localVideoRef.current.playsInline = true;
+              safePlay(localVideoRef.current);
+            }
+            setCameraOff(!restoredTrack.enabled);
+          }
+        } catch (restoreErr) {
+          console.warn('Unable to restore camera after switching failed:', restoreErr);
+        }
+      }
       setError(message);
     } finally {
       setCameraSwitching(false);
