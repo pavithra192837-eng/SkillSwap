@@ -116,7 +116,13 @@ const createSkill = async (req, res) => {
       });
     }
 
-    const skillName = name.trim();
+    const skillName = name.trim().replace(/\s+/g, " ");
+    if (skillName.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Skill names must be 100 characters or fewer",
+      });
+    }
 
     // ------------------------------------
     // Check duplicate skill
@@ -199,6 +205,13 @@ const createSkill = async (req, res) => {
       "Create skill error:",
       error.message
     );
+
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        success: false,
+        message: "A skill with this name already exists. Search the catalog and add the existing skill.",
+      });
+    }
 
     return res.status(500).json({
       success: false,
