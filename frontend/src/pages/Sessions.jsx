@@ -5,10 +5,10 @@ import api, { getErrorMessage } from '../api';
 import { useAuth } from '../context/AuthContext';
 import './Session.css';
 
-const initials = (name = 'Student') => name.split(/\s+/).filter(Boolean).map(x => x[0]).join('').slice(0, 2).toUpperCase() || 'S';
+const initials = (name = 'Student') => name.split(/s+/).filter(Boolean).map(x => x[0]).join('').slice(0, 2).toUpperCase() || 'S';
 const dateTime = value => { const d = new Date(value); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); };
 const toUtcIso = value => { const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toISOString(); };
-const localInput = value => { const d = value ? new Date(value) : new Date(Date.now() + 2 * 60 * 1000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };\nconst earliestInput = () => localInput(new Date(Date.now() + 60 * 1000));
+const localInput = value => { const d = value ? new Date(value) : new Date(Date.now() + 2 * 60 * 1000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }; const earliestInput = () => localInput(new Date(Date.now() + 60 * 1000));
 const sessionWindow = session => { const start = new Date(session.scheduled_at); if (Number.isNaN(start.getTime())) return '—'; const end = new Date(start.getTime() + Number(session.duration_minutes || 60) * 60000); return `${start.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} – ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; };
 
 function LessonModal({ exchange, onClose, onDone }) {
