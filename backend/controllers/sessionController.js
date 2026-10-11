@@ -733,17 +733,17 @@ const completeSession = async (
     // This removes the manual 'add to profile' step while keeping the
     // skill level editable later from Skill Setup.
     const [learningPlans] = await pool.query(`
-      SELECT er.planned_learning_sessions,
+      SELECT CASE WHEN s.lesson_type='TEACHING' THEN er.planned_teaching_sessions ELSE er.planned_learning_sessions END AS planned_sessions,
              lp.learner_id, lp.skill_id,
              COUNT(DISTINCT CASE WHEN s.status='COMPLETED' THEN s.id END) AS completed_lessons
       FROM exchange_requests er
       JOIN sessions s ON s.request_id = er.id
-      JOIN learning_progress lp ON lp.session_id = s.id
+      JOIN learning_progress lp ON lp.session_id = s.id AND lp.learner_id = s.learner_id AND lp.skill_id = s.skill_id
       WHERE er.id = ?
-      GROUP BY er.planned_learning_sessions, lp.learner_id, lp.skill_id
+      GROUP BY planned_sessions, lp.learner_id, lp.skill_id
     `, [session.request_id]);
     for (const plan of learningPlans) {
-      if (Number(plan.completed_lessons) < Number(plan.planned_learning_sessions)) continue;
+      if (Number(plan.completed_lessons) < Number(plan.planned_sessions)) continue;
       const [existingPurpose] = await pool.query(
         `SELECT id, type FROM user_skills WHERE user_id=? AND skill_id=? LIMIT 1`,
         [plan.learner_id, plan.skill_id]
@@ -762,7 +762,7 @@ const completeSession = async (
         UPDATE learning_progress lp
         JOIN sessions s ON s.id=lp.session_id
         SET lp.status='ADDED_TO_PROFILE', lp.added_to_profile_at=COALESCE(lp.added_to_profile_at,NOW())
-        WHERE s.request_id=? AND lp.learner_id=? AND lp.skill_id=? AND s.status='COMPLETED'
+        WHERE s.request_id=? AND lp.learner_id=? AND lp.skill_id=? AND s.learner_id=lp.learner_id AND s.skill_id=lp.skill_id AND s.status='COMPLETED'
       `, [session.request_id, plan.learner_id, plan.skill_id]);
       await pool.query(`
         INSERT INTO notifications (user_id,type,title,message,reference_id,is_read)
