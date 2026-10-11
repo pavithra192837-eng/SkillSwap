@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, CameraOff, Check, Maximize2, MessageCircle, Mic, MicOff, PhoneOff, Send, ShieldCheck, Volume2, X } from 'lucide-react';
+import { ArrowLeft, Camera, CameraOff, Check, SwitchCamera, Maximize2, MessageCircle, Mic, MicOff, PhoneOff, Send, ShieldCheck, Volume2, X } from 'lucide-react';
 import { get, onChildAdded, onValue, push, ref, remove, serverTimestamp, set, update } from 'firebase/database';
 import { signInAnonymously } from 'firebase/auth';
 import { firebaseAuth, realtimeDb, firebaseConfigured } from '../firebase';
@@ -124,6 +124,8 @@ export default function Call() {
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(mode !== 'video');
+  const [cameraFacing, setCameraFacing] = useState('user');
+  const [cameraSwitching, setCameraSwitching] = useState(false);
   const [speaker, setSpeaker] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -570,6 +572,94 @@ export default function Call() {
     track.enabled = !track.enabled;
     setCameraOff(!track.enabled);
   };
+
+  // Switch the active camera without ending the call or touching the audio track.
+  // Phones generally switch by facingMode; laptops/desktops switch between enumerated webcams.
+  const flipCamera = async () => {
+    if (cameraSwitching) return;
+    const currentStream = localStreamRef.current;
+    const oldTrack = currentStream?.getVideoTracks?.()[0];
+    const sender = pcRef.current?.getSenders?.().find((item) => item.track?.kind === 'video');
+    if (!currentStream || !oldTrack || !sender || !navigator?.mediaDevices?.getUserMedia) {
+      setError('Camera switching is not available right now. Make sure your video is turned on.');
+      return;
+    }
+
+    let cameraStream;
+    setCameraSwitching(true);
+    setError('');
+    try {
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+      let videoConstraints;
+
+      if (isMobile) {
+        const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: { exact: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+        } catch (constraintError) {
+          // Some mobile browsers expose cameras more reliably through deviceId.
+          if (!['NotFoundError', 'OverconstrainedError', 'ConstraintNotSatisfiedError'].includes(constraintError?.name)) throw constraintError;
+          const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+          const currentId = oldTrack.getSettings?.().deviceId;
+          const currentIndex = devices.findIndex((d) => d.deviceId === currentId);
+          if (devices.length < 2) throw new Error('Only one camera is available on this device.');
+          const nextDevice = devices[(currentIndex + 1 + devices.length) % devices.length];
+          videoConstraints = { deviceId: { exact: nextDevice.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } };
+          cameraStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
+        }
+      } else {
+        // facingMode usually has no front/back meaning on laptops. Cycle through actual webcams instead.
+        const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+        const currentId = oldTrack.getSettings?.().deviceId;
+        if (devices.length < 2) {
+          throw new Error('Only one camera is available on this laptop. To switch cameras, connect another webcam and allow browser camera access.');
+        }
+        let currentIndex = devices.findIndex((d) => d.deviceId === currentId);
+        if (currentIndex < 0) currentIndex = 0;
+        const nextDevice = devices[(currentIndex + 1) % devices.length];
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { deviceId: { exact: nextDevice.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+      }
+
+      const nextTrack = cameraStream.getVideoTracks()[0];
+      if (!nextTrack) throw new Error('No camera was returned by the device.');
+      nextTrack.enabled = oldTrack.enabled;
+      await sender.replaceTrack(nextTrack);
+      currentStream.removeTrack(oldTrack);
+      currentStream.addTrack(nextTrack);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = currentStream;
+        safePlay(localVideoRef.current);
+      }
+      oldTrack.stop();
+      const newDeviceId = nextTrack.getSettings?.().deviceId;
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const newDevice = devices.find((d) => d.kind === 'videoinput' && d.deviceId === newDeviceId);
+      // The value is used for mobile front/back choice; desktop button text uses camera name.
+      setCameraFacing((previous) => {
+        if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) return previous === 'user' ? 'environment' : 'user';
+        return newDevice?.label || 'webcam';
+      });
+      setCameraOff(!nextTrack.enabled);
+    } catch (switchError) {
+      cameraStream?.getTracks?.().forEach((track) => track.stop());
+      const message = switchError?.name === 'NotAllowedError' || switchError?.name === 'PermissionDeniedError'
+        ? 'Camera permission was denied. Allow camera access in your browser settings.'
+        : switchError?.name === 'NotFoundError' || switchError?.name === 'OverconstrainedError' || switchError?.name === 'ConstraintNotSatisfiedError'
+          ? 'No other available camera was found. Connect another webcam or check your camera settings.'
+          : switchError?.name === 'SecurityError'
+            ? 'Camera access requires HTTPS (or localhost during development).'
+            : (switchError?.message || 'Could not switch cameras. Your current call is still active.');
+      setError(message);
+    } finally {
+      setCameraSwitching(false);
+    }
+  };
   const toggleSpeaker = () => {
     const elements = [remoteAudioRef.current, remoteVideoRef.current].filter(Boolean);
     if (!elements.length) return;
@@ -600,7 +690,7 @@ export default function Call() {
         </section>
         {chatOpen && <aside className="call-chat-v3"><div className="call-chat-top"><div><span>CALL CHAT</span><strong>{targetName}</strong></div><button onClick={() => setChatOpen(false)}><X size={17} /></button></div><div className="call-chat-list">{messages.length ? messages.map((m) => <div className={`call-msg ${Number(m.senderId) === Number(user.id) ? 'mine' : ''}`} key={m.id}>{m.text && <span>{m.text}</span>}{m.attachment && <a className="chat-file" href={m.attachment.url} target="_blank" rel="noreferrer">📎 <strong>{m.attachment.name}</strong></a>}<small>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small></div>) : <div className="chat-empty"><MessageCircle size={25} /><strong>Keep talking while you learn</strong><span>Send a message without leaving the call.</span></div>}</div><form onSubmit={sendMessage} className="call-composer"><label className="chat-attach" title="Send photo or document">📎<input type="file" onChange={sendAttachment} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" hidden /></label><input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Message…" /><button type="submit"><Send size={16} /></button></form></aside>}
       </div>
-      <footer className="call-bottom-v3"><div className="media-note"><ShieldCheck size={15} /><span>Private WebRTC · {connectionType}</span></div><button className={`media-control ${muted ? 'off' : ''}`} onClick={toggleMute}>{muted ? <MicOff size={19} /> : <Mic size={19} />}<span>{muted ? 'Unmute' : 'Mute'}</span></button>{mode === 'video' && <button className={`media-control ${cameraOff ? 'off' : ''}`} onClick={toggleCamera}>{cameraOff ? <CameraOff size={19} /> : <Camera size={19} />}<span>{cameraOff ? 'Camera on' : 'Camera'}</span></button>}<button className="media-control" onClick={toggleSpeaker}><Volume2 size={19} /><span>{speaker ? 'Speaker' : 'Audio'}</span></button><button className="call-chat-button" onClick={() => setChatOpen((v) => !v)}><MessageCircle size={18} /><span>Chat</span></button><button className="end-session-btn" onClick={() => finish(false, 'USER_ENDED')}><PhoneOff size={18} /><span>{sessionId ? 'End session' : 'End call'}</span></button></footer>
+      <footer className="call-bottom-v3"><div className="media-note"><ShieldCheck size={15} /><span>Private WebRTC · {connectionType}</span></div><button className={`media-control ${muted ? 'off' : ''}`} onClick={toggleMute}>{muted ? <MicOff size={19} /> : <Mic size={19} />}<span>{muted ? 'Unmute' : 'Mute'}</span></button>{mode === 'video' && <><button className={`media-control ${cameraOff ? 'off' : ''}`} onClick={toggleCamera}>{cameraOff ? <CameraOff size={19} /> : <Camera size={19} />}<span>{cameraOff ? 'Camera on' : 'Camera'}</span></button><button className="media-control" onClick={flipCamera} disabled={cameraSwitching} title="Switch camera" aria-label="Switch camera"><SwitchCamera size={19} /><span>{cameraSwitching ? 'Switching…' : (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') ? (cameraFacing === 'user' ? 'Back camera' : 'Front camera') : 'Switch webcam')}</span></button></>}<button className="media-control" onClick={toggleSpeaker}><Volume2 size={19} /><span>{speaker ? 'Speaker' : 'Audio'}</span></button><button className="call-chat-button" onClick={() => setChatOpen((v) => !v)}><MessageCircle size={18} /><span>Chat</span></button><button className="end-session-btn" onClick={() => finish(false, 'USER_ENDED')}><PhoneOff size={18} /><span>{sessionId ? 'End session' : 'End call'}</span></button></footer>
     </main>
   </>;
 }
