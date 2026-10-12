@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarDays, Check, Clock3, MessageCircle, RefreshCw, UserRound, X } from 'lucide-react';
+import { ArrowRight, Check, Clock3, Layers3, MessageCircle, RefreshCw, X } from 'lucide-react';
 import api, { getErrorMessage } from '../api';
 import './Requests.css';
 
@@ -14,10 +14,6 @@ export default function Requests() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
-  const [scheduleFor, setScheduleFor] = useState(null);
-  const [scheduleAt, setScheduleAt] = useState('');
-  const [durationMinutes, setDurationMinutes] = useState(60);
-
   const load = useCallback(async () => {
     try {
       setError('');
@@ -46,12 +42,6 @@ export default function Requests() {
     finally { setBusy(null); }
   };
 
-  const schedule = async (requestId) => {
-    if (!scheduleAt) return setError('Choose a date and time first.');
-    await act(requestId, () => api.post('/sessions', { request_id: requestId, scheduled_at: scheduleAt, duration_minutes: durationMinutes }), 'Could not schedule the session.');
-    setScheduleFor(null); setScheduleAt(''); setDurationMinutes(60);
-  };
-
   return <div className="requests-modern">
     <section className="requests-intro"><div><span className="page-eyebrow">CONNECTIONS</span><h2>Exchange requests</h2><p>Review real requests from students, accept the right exchange and move into a shared learning session.</p></div><button className="outline-action" onClick={load}><RefreshCw size={16}/> Refresh</button></section>
 
@@ -68,10 +58,11 @@ export default function Requests() {
           <div className="request-card-top"><Link to={`/profile/${person.id}`} className="request-person-modern"><div className="request-avatar-modern">{initials(person.name)}</div><div><strong>{person.name}</strong><span>{person.department || 'Student'}{person.college ? ` · ${person.college}` : ''}</span></div></Link><span className={`request-state ${String(request.status).toLowerCase()}`}>{request.status}</span></div>
           <div className="exchange-strip"><div><small>{received ? 'THEY OFFER' : 'YOU OFFER'}</small><strong>{request.offered_skill_name}</strong></div><div className="exchange-symbol">⇄</div><div><small>{received ? 'THEY WANT' : 'YOU WANT'}</small><strong>{request.requested_skill_name}</strong></div></div>
           {request.message && <div className="request-quote">“{request.message}”</div>}
+          {accepted && <div className="request-plan-hint"><Layers3 size={14}/> Learning plan: {request.planned_learning_sessions || 1} lessons to learn · {request.planned_teaching_sessions || 1} lessons to teach · schedule them from Sessions.</div>}
           <div className="request-footer"><span><Clock3 size={14}/> {dateText(request.created_at)}</span><div className="request-footer-actions">
             {pending && received && <><button className="request-accept" disabled={busy === request.id} onClick={() => act(request.id, () => api.put(`/requests/${request.id}/accept`), 'Could not accept the request.')}><Check size={15}/> Accept</button><button className="request-decline" disabled={busy === request.id} onClick={() => act(request.id, () => api.put(`/requests/${request.id}/reject`), 'Could not decline the request.')}><X size={15}/> Decline</button></>}
             {pending && !received && <button className="request-decline" disabled={busy === request.id} onClick={() => act(request.id, () => api.delete(`/requests/${request.id}`), 'Could not cancel the request.')}><X size={15}/> Cancel</button>}
-            {accepted && <><Link className="request-message" to={`/messages?userId=${person.id}`}><MessageCircle size={15}/> Message</Link>{scheduleFor === request.id ? <div className="schedule-inline"><input type="datetime-local" min={new Date().toISOString().slice(0,16)} value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}/><select value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))} aria-label="Session duration"><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option><option value={90}>90 minutes</option></select><button className="request-accept" disabled={busy === request.id} onClick={() => schedule(request.id)}><CalendarDays size={15}/> Schedule</button><button className="request-decline" onClick={() => {setScheduleFor(null);setScheduleAt('');setDurationMinutes(60)}}>Cancel</button></div> : <button className="request-accept" onClick={() => setScheduleFor(request.id)}><CalendarDays size={15}/> Schedule</button>}</>}
+            {accepted && <><Link className="request-message" to={`/messages?userId=${person.id}`}><MessageCircle size={15}/> Message</Link><Link className="request-accept" to={`/sessions?exchange=${request.id}`}><Layers3 size={15}/> Open lesson plan</Link></>}
           </div></div>
         </article>;
       })}

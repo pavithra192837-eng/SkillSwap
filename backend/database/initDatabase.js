@@ -284,6 +284,21 @@ const initializeDatabase = async () => {
       "✅ exchange_requests table ready"
     );
 
+    // Backward-compatible exchange planning fields.
+    const [requestColumns] = await connection.query(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'exchange_requests'
+    `);
+    const requestColumnSet = new Set(requestColumns.map((row) => row.COLUMN_NAME));
+    const requestMigrations = [
+      ['planned_learning_sessions', `ALTER TABLE exchange_requests ADD COLUMN planned_learning_sessions INT NOT NULL DEFAULT 1`],
+      ['planned_teaching_sessions', `ALTER TABLE exchange_requests ADD COLUMN planned_teaching_sessions INT NOT NULL DEFAULT 1`]
+    ];
+    for (const [column, sql] of requestMigrations) {
+      if (!requestColumnSet.has(column)) await connection.query(sql);
+    }
+    console.log('✅ exchange learning plan fields ready');
+
     // ========================================
     // 6. SESSIONS
     // ========================================
@@ -352,6 +367,25 @@ const initializeDatabase = async () => {
     console.log(
       "✅ session timing fields ready"
     );
+
+    const [sessionColumnsAfterTiming] = await connection.query(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sessions'
+    `);
+    const sessionColumnSetAfterTiming = new Set(sessionColumnsAfterTiming.map((row) => row.COLUMN_NAME));
+    const sessionMigrationsAfterTiming = [
+      ['session_number', `ALTER TABLE sessions ADD COLUMN session_number INT NOT NULL DEFAULT 1`],
+      ['lesson_type', `ALTER TABLE sessions ADD COLUMN lesson_type ENUM('LEARNING','TEACHING','BOTH') NOT NULL DEFAULT 'BOTH'`],
+      ['learner_id', `ALTER TABLE sessions ADD COLUMN learner_id INT NULL`],
+      ['teacher_id', `ALTER TABLE sessions ADD COLUMN teacher_id INT NULL`],
+      ['skill_id', `ALTER TABLE sessions ADD COLUMN skill_id INT NULL`],
+      ['rescheduled_from_id', `ALTER TABLE sessions ADD COLUMN rescheduled_from_id INT NULL`],
+      ['schedule_note', `ALTER TABLE sessions ADD COLUMN schedule_note VARCHAR(500) NULL`]
+    ];
+    for (const [column, sql] of sessionMigrationsAfterTiming) {
+      if (!sessionColumnSetAfterTiming.has(column)) await connection.query(sql);
+    }
+    console.log('✅ multi-session scheduling fields ready');
 
     console.log(
       "✅ sessions table ready"

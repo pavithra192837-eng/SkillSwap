@@ -14,6 +14,8 @@ const sendRequest = async (req, res) => {
       offered_skill_id,
       requested_skill_id,
       message,
+      planned_learning_sessions = 3,
+      planned_teaching_sessions = 3,
     } = req.body;
 
     // ------------------------------------
@@ -30,6 +32,9 @@ const sendRequest = async (req, res) => {
           "Receiver ID, offered skill ID and requested skill ID are required",
       });
     }
+
+    const learningSessions = Math.max(1, Math.min(20, Number(planned_learning_sessions) || 3));
+    const teachingSessions = Math.max(1, Math.min(20, Number(planned_teaching_sessions) || 3));
 
     // ------------------------------------
     // Cannot send request to yourself
@@ -128,6 +133,24 @@ const sendRequest = async (req, res) => {
       });
     }
 
+    // Prevent duplicate active exchanges in either direction.
+    const [activeExchange] = await pool.query(`
+      SELECT id, status
+      FROM exchange_requests
+      WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+        AND ((offered_skill_id = ? AND requested_skill_id = ?) OR (offered_skill_id = ? AND requested_skill_id = ?))
+        AND status IN ('PENDING','ACCEPTED')
+      LIMIT 1
+    `, [senderId, receiver_id, receiver_id, senderId, offered_skill_id, requested_skill_id, requested_skill_id, offered_skill_id]);
+    if (activeExchange.length) {
+      return res.status(409).json({
+        success: false,
+        message: activeExchange[0].status === 'ACCEPTED'
+          ? 'An active exchange already exists for these skills with this student.'
+          : 'A matching exchange request is already pending.'
+      });
+    }
+
     // ------------------------------------
     // Check existing pending request
     // ------------------------------------
@@ -170,9 +193,11 @@ const sendRequest = async (req, res) => {
         offered_skill_id,
         requested_skill_id,
         message,
+        planned_learning_sessions,
+        planned_teaching_sessions,
         status
       )
-      VALUES (?, ?, ?, ?, ?, 'PENDING')
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
       `,
       [
         senderId,
@@ -180,6 +205,8 @@ const sendRequest = async (req, res) => {
         offered_skill_id,
         requested_skill_id,
         message || null,
+        learningSessions,
+        teachingSessions,
       ]
     );
 
@@ -221,6 +248,8 @@ const sendRequest = async (req, res) => {
           Number(offered_skill_id),
         requested_skill_id:
           Number(requested_skill_id),
+        planned_learning_sessions: learningSessions,
+        planned_teaching_sessions: teachingSessions,
         message: message || null,
         status: "PENDING",
       },
@@ -261,6 +290,8 @@ const getIncomingRequests = async (
         er.requested_skill_id,
 
         er.message,
+        er.planned_learning_sessions,
+        er.planned_teaching_sessions,
         er.status,
         er.created_at,
         er.updated_at,
@@ -338,6 +369,8 @@ const getOutgoingRequests = async (
         er.requested_skill_id,
 
         er.message,
+        er.planned_learning_sessions,
+        er.planned_teaching_sessions,
         er.status,
         er.created_at,
         er.updated_at,
@@ -416,6 +449,8 @@ const getRequestById = async (
         er.requested_skill_id,
 
         er.message,
+        er.planned_learning_sessions,
+        er.planned_teaching_sessions,
         er.status,
         er.created_at,
         er.updated_at,
@@ -531,6 +566,24 @@ const acceptRequest = async (
         success: false,
         message:
           `Request has already been ${request.status}`,
+      });
+    }
+
+    // If the same pair already has the reciprocal exchange accepted,
+    // don't create a second exchange.
+    const [duplicateAccepted] = await pool.query(`
+      SELECT id FROM exchange_requests
+      WHERE id <> ?
+        AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+        AND offered_skill_id = ? AND requested_skill_id = ?
+        AND status = 'ACCEPTED'
+      LIMIT 1
+    `, [requestId, request.sender_id, request.receiver_id, request.receiver_id, request.sender_id, request.requested_skill_id, request.offered_skill_id]);
+    if (duplicateAccepted.length) {
+      await pool.query(`UPDATE exchange_requests SET status='CANCELLED' WHERE id=?`, [requestId]);
+      return res.status(409).json({
+        success: false,
+        message: 'This skill exchange is already active. The duplicate request was closed.'
       });
     }
 

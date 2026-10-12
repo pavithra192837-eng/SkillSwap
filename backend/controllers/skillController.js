@@ -116,7 +116,13 @@ const createSkill = async (req, res) => {
       });
     }
 
-    const skillName = name.trim();
+    const skillName = name.trim().replace(/\s+/g, " ");
+    if (skillName.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Skill names must be 100 characters or fewer",
+      });
+    }
 
     // ------------------------------------
     // Check duplicate skill
@@ -199,6 +205,13 @@ const createSkill = async (req, res) => {
       "Create skill error:",
       error.message
     );
+
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        success: false,
+        message: "A skill with this name already exists. Search the catalog and add the existing skill.",
+      });
+    }
 
     return res.status(500).json({
       success: false,
@@ -359,6 +372,19 @@ const addUserSkill = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Skill not found",
+      });
+    }
+
+    // A skill has one purpose in a student's profile. The same skill cannot
+    // be both something the student teaches and something they learn.
+    const [conflictingUserSkills] = await pool.query(
+      `SELECT id, type FROM user_skills WHERE user_id = ? AND skill_id = ? LIMIT 1`,
+      [userId, skill_id]
+    );
+    if (conflictingUserSkills.length > 0 && conflictingUserSkills[0].type !== type) {
+      return res.status(409).json({
+        success: false,
+        message: `This skill is already in your ${conflictingUserSkills[0].type === 'TEACH' ? 'teaching' : 'learning'} list. A skill cannot be both.`
       });
     }
 
